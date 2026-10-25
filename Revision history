@@ -1,2 +1,4 @@
-Gantt-alpha.html: first release
-Gantt-alpha 0.1.1.html: actually v0.1.0-alpha2, I`ll fix it in the next version
+Gantt-alpha.html: prima versione, incompleta
+Gantt-alpha 0.1.1.html: in realtà sarebbe la v0.1.0-alpha2, sistemerò alla prossima emissione. Sistemati un po' di errori della prima versione
+Gantt v0.1.0-alpha2: aggiunti dei controlli e sistemata la numerazione delle revisioni
+Gantt v1.0.0-beta1: aggiunti ulteriori controlli sull'ordine delle attività e sotto-attività, sullo zoom delle settimane, sul salvataggio ed importazione delle programmazioni
