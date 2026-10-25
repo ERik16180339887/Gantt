@@ -1,0 +1,1226 @@
+<!--
+  ========================================================================
+  Interactive Gantt Project Management Tool (v0.1.0-alpha2)
+  Copyright (C) 2026
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
+  ------------------------------------------------------------------------
+  Questo programma è software libero: puoi ridistribuirlo e/o modificarlo
+  secondo i termini della Licenza Pubblica Generale GNU (GNU GPL) come 
+  pubblicata dalla Free Software Foundation, versione 3 della licenza o 
+  (a tua scelta) qualsiasi versione successiva.
+
+  Questo programma è distribuito nella speranza che sia utile,
+  ma SENZA ALCUNA GARANZIA; senza neppure la garanzia implicita di
+  COMMERCIALIZZABILITÀ o IDONEITÀ PER UNO SCOPO PARTICOLARE. 
+
+  Vedi la Licenza Pubblica Generale GNU per maggiori dettagli:
+  <https://www.gnu.org/licenses/gpl-3.0.html>
+  ========================================================================
+-->
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagramma di Gantt Interattivo (alpha6)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+        }
+        /* Custom scrollbars for clean look */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* Lock Table Layout so columns respect exact widths */
+        #ganttTable {
+            table-layout: fixed;
+            width: max-content;
+        }
+        /* Fixed Left Column positioning & sizing */
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            z-index: 20;
+            width: 600px !important;       /* <-- CAMBIA QUI */
+            min-width: 600px !important;   /* <-- CAMBIA QUI */
+            max-width: 600px !important;   /* <-- CAMBIA QUI */
+        }
+        .sticky-col-header {
+            position: sticky;
+            left: 0;
+            z-index: 30;
+            width: 600px !important;       /* <-- CAMBIA QUI */
+            min-width: 600px !important;   /* <-- CAMBIA QUI */
+            max-width: 600px !important;   /* <-- CAMBIA QUI */
+        }
+        /* Grid background styling */
+        .grid-line {
+            border-right: 1px dashed #e2e8f0;
+        }
+        /* Custom transition effects */
+        .task-bar-transition {
+            transition: left 0.15s ease, width 0.15s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- TOP HEADER / TOOLBAR -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 shadow-sm flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40">
+        <div class="flex items-center space-x-3">
+            <div class="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md">
+                <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <h1 class="text-xl font-bold text-slate-900 tracking-tight">Gestione Progetti Gantt</h1>
+                    <span class="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200">alpha6</span>
+                    <span class="text-slate-300 font-light">|</span>
+                    <!-- Project Name Badge -->
+                    <button id="editProjectNameBtn" class="flex items-center space-x-1.5 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg border border-indigo-200/60 transition-colors text-sm font-semibold group" title="Clicca per modificare il nome del progetto">
+                        <span id="projectNameDisplay">Nuovo Progetto</span>
+                        <i data-lucide="pencil" class="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-600 transition-colors"></i>
+                    </button>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">Pianificazione e condivisione file singolo (Licenza GNU GPLv3)</p>
+            </div>
+        </div>
+
+        <!-- SEARCH AND GLOBAL ACTIONS -->
+        <div class="flex items-center flex-wrap gap-3">
+            <!-- Timeline Zoom Slider -->
+            <div class="flex items-center space-x-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200" title="Contrai o espandi la larghezza delle settimane">
+                <i data-lucide="zoom-out" class="w-4 h-4 text-slate-500"></i>
+                <input type="range" id="zoomSlider" min="10" max="40" step="2" value="22" class="w-24 accent-indigo-600 cursor-pointer">
+                <i data-lucide="zoom-in" class="w-4 h-4 text-slate-500"></i>
+            </div>
+
+            <!-- Search Input -->
+            <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="searchInput" placeholder="Cerca attività..." 
+                    class="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-40 lg:w-56 transition-all">
+            </div>
+
+            <!-- Global Controls -->
+            <button id="addParentBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-3.5 py-2 rounded-lg text-sm flex items-center space-x-1.5 shadow-sm transition-colors">
+                <i data-lucide="folder-plus" class="w-4 h-4"></i>
+                <span>Nuovo Gruppo</span>
+            </button>
+
+            <div class="h-6 w-px bg-slate-200 mx-1"></div>
+
+            <!-- Export HTML Standalone (File Unico per Collega) -->
+            <button id="exportHtmlBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3.5 py-2 rounded-lg text-sm flex items-center space-x-1.5 shadow-sm transition-colors" title="Genera un singolo file HTML con nome personalizzato">
+                <i data-lucide="file-code" class="w-4 h-4"></i>
+                <span>Esporta HTML Unico</span>
+            </button>
+
+            <!-- Export JSON -->
+            <button id="exportBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3.5 py-2 rounded-lg text-sm flex items-center space-x-1.5 transition-colors" title="Esporta Dati JSON con nome personalizzato">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Salva</span>
+            </button>
+
+            <!-- Import JSON -->
+            <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-2 rounded-lg text-sm flex items-center space-x-1.5 transition-colors cursor-pointer" title="Importa Dati JSON">
+                <i data-lucide="upload" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Importa</span>
+                <input type="file" id="importInput" accept=".json" class="hidden">
+            </label>
+
+            <!-- Reset Default Data / Clear -->
+            <button id="clearBtn" class="bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 font-medium px-3 py-2 rounded-lg text-sm flex items-center space-x-1.5 transition-colors" title="Svuota Tutto (Nuovo Progetto)">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+            <button id="resetBtn" class="bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 font-medium px-3 py-2 rounded-lg text-sm flex items-center space-x-1.5 transition-colors" title="Carica Dati di Esempio">
+                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN GANTT CONTAINER -->
+    <main class="flex-1 p-4 md:p-6 overflow-hidden flex flex-col">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
+            
+            <!-- GANTT SCROLL AREA -->
+            <div id="ganttScrollContainer" class="flex-1 overflow-auto relative">
+                <table id="ganttTable" class="border-collapse text-left">
+                    <!-- Table Header -->
+                    <thead class="bg-slate-100 border-b border-slate-200 text-xs text-slate-600 font-semibold sticky top-0 z-30">
+                        <tr id="ganttHeaderRow">
+                            <!-- Left Sidebar Header (Fixed 400px width for long task descriptions) -->
+                            <th class="sticky-col-header bg-slate-100 p-3 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]" style="width: 400px; min-width: 400px; max-width: 400px;">
+                                <div class="flex items-center justify-between">
+                                    <span>Struttura Attività</span>
+                                    <span class="text-[10px] text-slate-400 font-normal">Azione / Avanzamento / Ritardi</span>
+                                </div>
+                            </th>
+                            <!-- Dynamic Timeline Weeks Columns generated here -->
+                        </tr>
+                    </thead>
+                    <!-- Table Body -->
+                    <tbody id="ganttBody" class="divide-y divide-slate-100 text-sm">
+                        <!-- Rows rendered dynamically via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- CUSTOM EDIT TASK MODAL -->
+    <div id="editModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden transform transition-all">
+            <div class="bg-slate-50 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
+                <h3 id="modalTitle" class="font-semibold text-slate-800 text-base">Modifica Attività</h3>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-md">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form id="editForm" class="p-5 space-y-4">
+                <input type="hidden" id="editTaskId">
+                
+                <!-- Title -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Nome Attività</label>
+                    <input type="text" id="editTaskTitle" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <!-- Date Range (Only active for child tasks) -->
+                <div id="dateInputsGroup" class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Data Inizio</label>
+                        <input type="date" id="editStartDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Data Fine (Pesciolino)</label>
+                        <input type="date" id="editEndDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Delay Days Independent Control -->
+                <div id="delayDaysGroup" class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Giorni di Ritardo Extra</label>
+                        <input type="number" id="editDelayDays" min="0" max="90" value="0" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Causa / Nota Ritardo</label>
+                        <input type="text" id="editDelayReason" placeholder="Es. Attesa materiale..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Completion Progress % (Child tasks only) -->
+                <div id="progressInputGroup">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Avanzamento (%): <span id="progressValue" class="text-indigo-600 font-bold">0%</span></label>
+                    </div>
+                    <input type="range" id="editProgress" min="0" max="100" step="5" class="w-full accent-indigo-600 cursor-pointer">
+                </div>
+
+                <!-- Color Options (ONLY Parent Activities) -->
+                <div id="colorPickerGroup" class="space-y-3 pt-2 border-t border-slate-100">
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Colore Gruppo Genitore</label>
+                    
+                    <!-- Color Presets -->
+                    <div class="flex items-center space-x-2">
+                        <button type="button" onclick="setPresetColor('#4f46e5')" class="w-7 h-7 rounded-full bg-indigo-600 border-2 border-white ring-2 ring-transparent hover:ring-indigo-300 transition-all"></button>
+                        <button type="button" onclick="setPresetColor('#059669')" class="w-7 h-7 rounded-full bg-emerald-600 border-2 border-white ring-2 ring-transparent hover:ring-emerald-300 transition-all"></button>
+                        <button type="button" onclick="setPresetColor('#d97706')" class="w-7 h-7 rounded-full bg-amber-600 border-2 border-white ring-2 ring-transparent hover:ring-amber-300 transition-all"></button>
+                        <button type="button" onclick="setPresetColor('#dc2626')" class="w-7 h-7 rounded-full bg-red-600 border-2 border-white ring-2 ring-transparent hover:ring-red-300 transition-all"></button>
+                        <button type="button" onclick="setPresetColor('#2563eb')" class="w-7 h-7 rounded-full bg-blue-600 border-2 border-white ring-2 ring-transparent hover:ring-blue-300 transition-all"></button>
+                        <button type="button" onclick="setPresetColor('#7c3aed')" class="w-7 h-7 rounded-full bg-purple-600 border-2 border-white ring-2 ring-transparent hover:ring-purple-300 transition-all"></button>
+                        
+                        <!-- Hex Picker -->
+                        <div class="flex items-center space-x-1.5 ml-auto">
+                            <span class="text-xs text-slate-500">Custom:</span>
+                            <input type="color" id="editColorHex" class="w-8 h-8 rounded border border-slate-200 cursor-pointer p-0 bg-transparent">
+                        </div>
+                    </div>
+
+                    <!-- Row Background Opacity Slider -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs text-slate-600 font-medium">Opacità Evidenziazione Riga: <span id="opacityValue" class="font-bold text-slate-800">15%</span></label>
+                        </div>
+                        <input type="range" id="editOpacity" min="5" max="50" step="1" class="w-full accent-indigo-600 cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex justify-end space-x-2 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50">Annulla</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CUSTOM CONFIRM DELETE MODAL -->
+    <div id="deleteModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 text-center">
+            <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-1">Conferma Eliminazione</h3>
+            <p id="deleteModalMessage" class="text-sm text-slate-600 mb-6">Sei sicuro di voler eliminare questa attività?</p>
+            <div class="flex justify-center space-x-3">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50">Annulla</button>
+                <button id="confirmDeleteBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 shadow-sm">Elimina</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOOLTIP OVERLAY CONTAINER -->
+    <div id="customTooltip" class="fixed hidden z-50 bg-slate-900 text-white text-xs rounded-lg shadow-xl p-3 max-w-xs pointer-events-none transition-opacity duration-150">
+        <!-- Rendered dynamically -->
+    </div>
+
+    <!-- MAIN JAVASCRIPT LOGIC -->
+    <script>
+        // DATI PREDEFINITI (Sostituiti automaticamente durante l'esportazione HTML)
+        const DEFAULT_DATA = [];
+        const DEFAULT_PROJECT_NAME = "Nuovo Progetto";
+
+        // DATI DI ESEMPIO PER IL RIPRISTINO
+        const SAMPLE_DATA = [
+            {
+                id: "parent-1",
+                title: "1. Fase di Progettazione & UX",
+                isParent: true,
+                expanded: true,
+                color: "#4f46e5",
+                bgOpacity: 12,
+                children: [
+                    { id: "child-1-1", title: "Analisi Requisiti", startDate: "2026-10-05", endDate: "2026-10-16", delayDays: 0, progress: 100, delayReason: "" },
+                    { id: "child-1-2", title: "Wireframe e Prototipazione", startDate: "2026-10-12", endDate: "2026-10-21", delayDays: 4, progress: 50, delayReason: "Attesa feedback cliente" },
+                    { id: "child-1-3", title: "Revisione Cliente UX", startDate: "2026-10-26", endDate: "2026-11-06", delayDays: 0, progress: 30, delayReason: "" }
+                ]
+            },
+            {
+                id: "parent-2",
+                title: "2. Sviluppo Frontend & Backend",
+                isParent: true,
+                expanded: true,
+                color: "#059669",
+                bgOpacity: 15,
+                children: [
+                    { id: "child-2-1", title: "Architettura Database", startDate: "2026-10-19", endDate: "2026-11-04", delayDays: 0, progress: 60, delayReason: "" },
+                    { id: "child-2-2", title: "Sviluppo API Rest", startDate: "2026-11-02", endDate: "2026-11-20", delayDays: 0, progress: 10, delayReason: "" },
+                    { id: "child-2-3", title: "Integrazione Interfaccia Utente", startDate: "2026-11-16", endDate: "2026-12-04", delayDays: 0, progress: 0, delayReason: "" }
+                ]
+            }
+        ];
+
+        let ganttData = [];
+        let currentProjectName = DEFAULT_PROJECT_NAME;
+        let weeksHeader = [];
+        let projectStartDate = null;
+        let projectEndDate = null;
+        let pendingDeleteId = null;
+        let pendingDeleteIsParent = false;
+        let searchQuery = "";
+
+        // Larghezza dinamica del singolo giorno gestita dallo zoom slider
+        let dayWidth = 22;
+        const WEEK_DAYS = 7;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadGanttData();
+            setupEventListeners();
+            lucide.createIcons();
+            renderGantt();
+        });
+
+        function loadGanttData() {
+            if (Array.isArray(DEFAULT_DATA) && DEFAULT_DATA.length > 0) {
+                ganttData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                saveGanttData();
+            } else {
+                const stored = localStorage.getItem('gantt_chart_data_it_v5');
+                if (stored) {
+                    try {
+                        ganttData = JSON.parse(stored);
+                    } catch (e) {
+                        ganttData = [];
+                    }
+                } else {
+                    ganttData = [];
+                }
+            }
+
+            const storedName = localStorage.getItem('gantt_project_name_v5');
+            if (storedName) {
+                currentProjectName = storedName;
+            } else if (typeof DEFAULT_PROJECT_NAME !== 'undefined' && DEFAULT_PROJECT_NAME) {
+                currentProjectName = DEFAULT_PROJECT_NAME;
+            }
+
+            updateProjectNameUI();
+            calculateRollups();
+        }
+
+        function saveGanttData() {
+            localStorage.setItem('gantt_chart_data_it_v5', JSON.stringify(ganttData));
+            localStorage.setItem('gantt_project_name_v5', currentProjectName);
+        }
+
+        function updateProjectNameUI() {
+            document.getElementById('projectNameDisplay').innerText = currentProjectName;
+        }
+
+        function editProjectName() {
+            const newName = prompt("Inserisci il nome del Progetto:", currentProjectName);
+            if (newName !== null && newName.trim() !== "") {
+                currentProjectName = newName.trim();
+                updateProjectNameUI();
+                saveGanttData();
+            }
+        }
+
+        function calculateRollups() {
+            ganttData.forEach(parent => {
+                if (!parent.children || parent.children.length === 0) {
+                    parent.startDate = "";
+                    parent.endDate = "";
+                    parent.plannedEndDate = "";
+                    parent.progress = 0;
+                    return;
+                }
+
+                let minDate = null;
+                let maxPlannedEnd = null;
+                let maxEffectiveEnd = null;
+                let totalProgress = 0;
+
+                parent.children.forEach(child => {
+                    const childStart = new Date(child.startDate);
+                    const baseEnd = new Date(child.endDate);
+                    const effectiveEnd = addDays(baseEnd, child.delayDays || 0);
+
+                    if (!minDate || childStart < minDate) minDate = childStart;
+                    if (!maxPlannedEnd || baseEnd > maxPlannedEnd) maxPlannedEnd = baseEnd;
+                    if (!maxEffectiveEnd || effectiveEnd > maxEffectiveEnd) maxEffectiveEnd = effectiveEnd;
+
+                    totalProgress += (parseInt(child.progress) || 0);
+                });
+
+                parent.startDate = minDate ? formatDateToISO(minDate) : "";
+                parent.plannedEndDate = maxPlannedEnd ? formatDateToISO(maxPlannedEnd) : "";
+                parent.endDate = maxEffectiveEnd ? formatDateToISO(maxEffectiveEnd) : "";
+                parent.progress = Math.round(totalProgress / parent.children.length);
+            });
+        }
+
+        function calculateTimelineRange() {
+            let allDates = [];
+
+            ganttData.forEach(parent => {
+                parent.children.forEach(child => {
+                    if (child.startDate) allDates.push(new Date(child.startDate));
+                    if (child.endDate) {
+                        allDates.push(new Date(child.endDate));
+                        const effEnd = addDays(new Date(child.endDate), child.delayDays || 0);
+                        allDates.push(effEnd);
+                    }
+                });
+            });
+
+            if (allDates.length === 0) {
+                const today = new Date();
+                allDates.push(today);
+                allDates.push(addDays(today, 30));
+            }
+
+            let minDate = new Date(Math.min(...allDates));
+            let maxDate = new Date(Math.max(...allDates));
+
+            minDate = getMonday(minDate);
+            minDate = addDays(minDate, -7);
+
+            maxDate = addDays(getMonday(maxDate), 14);
+
+            projectStartDate = minDate;
+            projectEndDate = maxDate;
+
+            weeksHeader = [];
+            let curr = new Date(projectStartDate);
+
+            while (curr < projectEndDate) {
+                const weekEnd = addDays(curr, 6);
+                const weekNum = getWeekNumber(curr);
+                
+                weeksHeader.push({
+                    label: `Sett. ${weekNum}`,
+                    rangeText: `${formatShortDate(curr)} - ${formatShortDate(weekEnd)}`,
+                    startDate: new Date(curr),
+                    endDate: weekEnd
+                });
+
+                curr = addDays(curr, 7);
+            }
+        }
+
+        function renderGantt() {
+            calculateRollups();
+            calculateTimelineRange();
+
+            const headerRow = document.getElementById('ganttHeaderRow');
+            headerRow.innerHTML = `
+                <th class="sticky-col-header bg-slate-100 p-3 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]" style="width: 400px; min-width: 400px; max-width: 400px;">
+                    <div class="flex items-center justify-between">
+                        <span>Struttura Attività</span>
+                        <span class="text-[10px] text-slate-400 font-normal">Azione / Avanzamento / Ritardi</span>
+                    </div>
+                </th>
+            `;
+
+            const colWidth = dayWidth * WEEK_DAYS;
+
+            weeksHeader.forEach(week => {
+                const th = document.createElement('th');
+                th.className = "p-2 border-r border-slate-200 text-center font-medium";
+                th.style.cssText = `width: ${colWidth}px; min-width: ${colWidth}px; max-width: ${colWidth}px;`;
+                th.innerHTML = `
+                    <div class="text-xs font-bold text-slate-700">${week.label}</div>
+                    <div class="text-[10px] text-slate-400 font-normal">${week.rangeText}</div>
+                `;
+                headerRow.appendChild(th);
+            });
+
+            const tbody = document.getElementById('ganttBody');
+            tbody.innerHTML = "";
+
+            if (ganttData.length === 0) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = `
+                    <td colspan="${weeksHeader.length + 1}" class="text-center py-12 text-slate-400">
+                        <i data-lucide="folder-open" class="w-10 h-10 mx-auto mb-2 opacity-40"></i>
+                        <p class="text-sm font-medium">Nessuna attività presente.</p>
+                        <p class="text-xs text-slate-400 mt-1">Clicca su "Nuovo Gruppo" in alto per iniziare a pianificare.</p>
+                    </td>
+                `;
+                tbody.appendChild(emptyRow);
+                lucide.createIcons();
+                return;
+            }
+
+            ganttData.forEach((parent, parentIdx) => {
+                const parentMatches = parent.title.toLowerCase().includes(searchQuery.toLowerCase());
+                const matchingChildren = parent.children.filter(c => c.title.toLowerCase().includes(searchQuery.toLowerCase()));
+
+                if (searchQuery && !parentMatches && matchingChildren.length === 0) {
+                    return;
+                }
+
+                const hexColor = parent.color || "#4f46e5";
+                const opacityVal = (parent.bgOpacity || 15) / 100;
+                const solidBg = getSolidTint(hexColor, opacityVal);
+
+                // --- PARENT ROW ---
+                const parentRow = document.createElement('tr');
+                parentRow.className = "hover:brightness-95 transition-all group border-b border-slate-200/80";
+
+                const sidebarCell = document.createElement('td');
+                sidebarCell.className = "sticky-col px-2.5 py-1.5 font-semibold text-slate-800 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]";
+                sidebarCell.style.cssText = `background-color: ${solidBg}; border-top: 4px solid ${hexColor}; width: 400px; min-width: 400px; max-width: 400px;`;
+                sidebarCell.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2 overflow-hidden mr-2">
+                            <button onclick="toggleExpand('${parent.id}')" class="text-slate-500 hover:text-slate-800 p-1 rounded">
+                                <i data-lucide="${parent.expanded ? 'chevron-down' : 'chevron-right'}" class="w-4 h-4"></i>
+                            </button>
+                            <span class="truncate text-sm font-semibold" title="${escapeHtml(parent.title)}">${escapeHtml(parent.title)}</span>
+                        </div>
+                        <div class="flex items-center space-x-1 shrink-0">
+                            <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-white/70 text-slate-700 border border-slate-200/50 mr-1">${parent.progress}%</span>
+                            <button onclick="moveParent('${parent.id}', 'up')" ${parentIdx === 0 ? 'disabled class="opacity-30 text-slate-400"' : 'class="p-1 hover:bg-slate-200/60 rounded text-slate-600"'} title="Sposta Su">
+                                <i data-lucide="arrow-up" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button onclick="moveParent('${parent.id}', 'down')" ${parentIdx === ganttData.length - 1 ? 'disabled class="opacity-30 text-slate-400"' : 'class="p-1 hover:bg-slate-200/60 rounded text-slate-600"'} title="Sposta Giù">
+                                <i data-lucide="arrow-down" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button onclick="addChildTask('${parent.id}')" class="p-1 hover:bg-indigo-100 text-indigo-600 rounded" title="Aggiungi Sotto-attività">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="openEditModal('${parent.id}', true)" class="p-1 hover:bg-slate-200/60 rounded text-slate-600" title="Modifica Gruppo">
+                                <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button onclick="promptDelete('${parent.id}', true)" class="p-1 hover:bg-red-100 text-red-600 rounded" title="Elimina Gruppo">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                parentRow.appendChild(sidebarCell);
+
+                const timelineCell = document.createElement('td');
+                timelineCell.colSpan = weeksHeader.length;
+                timelineCell.className = "p-0 relative h-12";
+                timelineCell.style.cssText = `background-color: ${solidBg}; border-top: 4px solid ${hexColor};`;
+
+                if (parent.startDate && parent.endDate) {
+                    const plannedEnd = parent.plannedEndDate || parent.endDate;
+                    const hasParentDelay = new Date(parent.endDate) > new Date(plannedEnd);
+
+                    const basePos = calculateBarPosition(parent.startDate, plannedEnd);
+
+                    let delayBarHtml = '';
+                    if (hasParentDelay) {
+                        const effectivePos = calculateBarPosition(parent.startDate, parent.endDate);
+                        const delayWidth = effectivePos.width - basePos.width;
+                        const delayLeft = basePos.left + basePos.width;
+
+                        delayBarHtml = `
+                            <div class="absolute h-6 top-2.5 rounded-r-md bg-amber-500 border-t border-b border-r border-amber-600 flex items-center justify-center shadow-sm"
+                                 style="left: ${delayLeft}px; width: ${delayWidth}px;">
+                                <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-white"></i>
+                            </div>
+                        `;
+                    }
+
+                    const parentBar = document.createElement('div');
+                    parentBar.className = "absolute h-6 top-2.5 rounded-md shadow-sm border border-slate-700/20 overflow-hidden flex items-center";
+                    
+                    if (hasParentDelay) {
+                        parentBar.style.cssText = `left: ${basePos.left}px; width: ${basePos.width}px; background-color: ${hexColor}; border-top-right-radius: 0; border-bottom-right-radius: 0;`;
+                    } else {
+                        parentBar.style.cssText = `left: ${basePos.left}px; width: ${basePos.width}px; background-color: ${hexColor};`;
+                    }
+
+                    parentBar.innerHTML = `
+                        <div class="h-full bg-black/20" style="width: ${parent.progress}%;"></div>
+                        <span class="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white drop-shadow-sm px-2 truncate">
+                            ${parent.progress}% (${formatShortDate(new Date(parent.startDate))} - ${formatShortDate(new Date(parent.endDate))})
+                        </span>
+                    `;
+
+                    timelineCell.appendChild(parentBar);
+                    if (hasParentDelay) {
+                        timelineCell.insertAdjacentHTML('beforeend', delayBarHtml);
+                    }
+                }
+
+                parentRow.appendChild(timelineCell);
+                tbody.appendChild(parentRow);
+
+                // --- CHILD ROWS ---
+                if (parent.expanded) {
+                    const visibleChildren = searchQuery ? matchingChildren : parent.children;
+
+                    visibleChildren.forEach(child => {
+                        const childRow = document.createElement('tr');
+                        childRow.className = "hover:brightness-95 transition-all border-b border-slate-100";
+
+                        const hasDelay = (child.delayDays || 0) > 0;
+                        const delayDays = child.delayDays || 0;
+
+                        const childSidebar = document.createElement('td');
+                        childSidebar.className = "sticky-col p-2 pl-8 text-xs font-medium text-slate-700 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]";
+                        childSidebar.style.cssText = `background-color: ${solidBg}; width: 400px; min-width: 400px; max-width: 400px;`;
+                        childSidebar.innerHTML = `
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2 overflow-hidden mr-2">
+                                    <i data-lucide="corner-down-right" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+                                    <span class="truncate" title="${escapeHtml(child.title)}">${escapeHtml(child.title)}</span>
+                                    ${hasDelay ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 shrink-0" title="Ritardo: +${delayDays} giorni"><i data-lucide="alert-triangle" class="w-3 h-3 mr-0.5 text-amber-600"></i>+${delayDays}g</span>` : ''}
+                                </div>
+                                <div class="flex items-center space-x-1 shrink-0">
+                                    <span class="text-[10px] text-slate-500 font-semibold mr-1">${child.progress}%</span>
+                                    <button onclick="openEditModal('${child.id}', false)" class="p-1 hover:bg-slate-200/60 rounded text-slate-500" title="Modifica">
+                                        <i data-lucide="edit-2" class="w-3 h-3"></i>
+                                    </button>
+                                    <button onclick="promptDelete('${child.id}', false)" class="p-1 hover:bg-red-100 text-red-500 rounded" title="Elimina">
+                                        <i data-lucide="trash" class="w-3 h-3"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        childRow.appendChild(childSidebar);
+
+                        const childTimeline = document.createElement('td');
+                        childTimeline.colSpan = weeksHeader.length;
+                        childTimeline.className = "p-0 relative h-10";
+                        childTimeline.style.backgroundColor = solidBg;
+
+                        const basePos = calculateBarPosition(child.startDate, child.endDate);
+
+                        let delayBarHtml = '';
+                        if (hasDelay) {
+                            const delayWidth = delayDays * dayWidth;
+                            const delayLeft = basePos.left + basePos.width;
+                            const plannedEnd = new Date(child.endDate);
+                            const actualEnd = addDays(plannedEnd, delayDays);
+
+                            delayBarHtml = `
+                                <div class="absolute h-7 top-1.5 rounded-r-md bg-amber-500/90 border-t border-b border-r border-amber-600 flex items-center justify-center cursor-pointer shadow-sm group/delay"
+                                     style="left: ${delayLeft}px; width: ${delayWidth}px;"
+                                     data-delay-info="Ritardo extra: +${delayDays} giorni. Fine effettiva prevista: ${formatShortDate(actualEnd)}. Causa: ${escapeHtml(child.delayReason || 'Non specificata')}">
+                                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-white"></i>
+                                </div>
+                            `;
+                        }
+
+                        const taskBar = document.createElement('div');
+                        taskBar.className = "absolute h-7 top-1.5 rounded-md shadow-sm border border-slate-800/10 flex items-center justify-between cursor-move group/bar";
+                        
+                        if (hasDelay) {
+                            taskBar.style.cssText = `left: ${basePos.left}px; width: ${basePos.width}px; background-color: ${hexColor}; border-top-right-radius: 0; border-bottom-right-radius: 0;`;
+                        } else {
+                            taskBar.style.cssText = `left: ${basePos.left}px; width: ${basePos.width}px; background-color: ${hexColor};`;
+                        }
+
+                        taskBar.innerHTML = `
+                            <div class="w-2 h-full cursor-ew-resize hover:bg-white/30 rounded-l-md transition-colors" data-handle="left" title="Trascina per ridimensionare inizio"></div>
+                            
+                            <div class="flex-1 h-full relative overflow-hidden flex items-center pointer-events-none">
+                                <div class="h-full bg-black/20 transition-all" style="width: ${child.progress}%;"></div>
+                                <span class="absolute inset-0 flex items-center px-2 text-[11px] font-medium text-white truncate drop-shadow-sm">
+                                    ${escapeHtml(child.title)} (${child.progress}%)
+                                </span>
+                            </div>
+
+                            <div class="w-2 h-full cursor-ew-resize hover:bg-white/30 rounded-r-md transition-colors" data-handle="right" title="Trascina per ridimensionare fine"></div>
+                        `;
+
+                        childTimeline.appendChild(taskBar);
+                        if (hasDelay) {
+                            childTimeline.insertAdjacentHTML('beforeend', delayBarHtml);
+                        }
+
+                        attachDragEvents(taskBar, child, parent.id);
+
+                        childRow.appendChild(childTimeline);
+                        tbody.appendChild(childRow);
+                    });
+                }
+            });
+
+            lucide.createIcons();
+            setupTooltips();
+        }
+
+        function setupTooltips() {
+            const tooltip = document.getElementById('customTooltip');
+            const delayElements = document.querySelectorAll('[data-delay-info]');
+
+            delayElements.forEach(el => {
+                el.addEventListener('mouseenter', (e) => {
+                    const info = el.getAttribute('data-delay-info');
+                    tooltip.innerHTML = `
+                        <div class="font-bold text-amber-400 mb-1 flex items-center"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 mr-1"></i> Segnalazione Ritardo Indipendente</div>
+                        <div>${info.replace(/\. /g, '<br>')}</div>
+                    `;
+                    tooltip.classList.remove('hidden');
+                    lucide.createIcons();
+                });
+
+                el.addEventListener('mousemove', (e) => {
+                    tooltip.style.left = (e.clientX + 12) + 'px';
+                    tooltip.style.top = (e.clientY + 12) + 'px';
+                });
+
+                el.addEventListener('mouseleave', () => {
+                    tooltip.classList.add('hidden');
+                });
+            });
+        }
+
+        function calculateBarPosition(startDateStr, endDateStr) {
+            const start = new Date(startDateStr);
+            const end = new Date(endDateStr);
+
+            const diffStartDays = Math.max(0, Math.round((start - projectStartDate) / (1000 * 60 * 60 * 24)));
+            const durationDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+
+            return {
+                left: diffStartDays * dayWidth,
+                width: durationDays * dayWidth
+            };
+        }
+
+        function attachDragEvents(barElem, childTask, parentId) {
+            let isDragging = false;
+            let isResizingLeft = false;
+            let isResizingRight = false;
+            let startX = 0;
+            let initialLeft = 0;
+            let initialWidth = 0;
+
+            const onMouseDown = (e) => {
+                const handle = e.target.getAttribute('data-handle');
+                if (handle === 'left') {
+                    isResizingLeft = true;
+                } else if (handle === 'right') {
+                    isResizingRight = true;
+                } else {
+                    isDragging = true;
+                }
+
+                startX = e.clientX;
+                initialLeft = parseFloat(barElem.style.left) || 0;
+                initialWidth = parseFloat(barElem.style.width) || dayWidth;
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            };
+
+            const onMouseMove = (e) => {
+                if (!isDragging && !isResizingLeft && !isResizingRight) return;
+
+                const dx = e.clientX - startX;
+                const daysDelta = Math.round(dx / dayWidth);
+
+                if (isDragging) {
+                    const newLeft = Math.max(0, initialLeft + (daysDelta * dayWidth));
+                    barElem.style.left = `${newLeft}px`;
+                } else if (isResizingRight) {
+                    const newWidth = Math.max(dayWidth, initialWidth + (daysDelta * dayWidth));
+                    barElem.style.width = `${newWidth}px`;
+                } else if (isResizingLeft) {
+                    const maxLeftShift = initialWidth / dayWidth - 1;
+                    const clampedDays = Math.min(daysDelta, maxLeftShift);
+                    const newLeft = Math.max(0, initialLeft + (clampedDays * dayWidth));
+                    const newWidth = Math.max(dayWidth, initialWidth - (clampedDays * dayWidth));
+                    barElem.style.left = `${newLeft}px`;
+                    barElem.style.width = `${newWidth}px`;
+                }
+            };
+
+            const onMouseUp = (e) => {
+                if (!isDragging && !isResizingLeft && !isResizingRight) return;
+
+                const finalLeft = parseFloat(barElem.style.left);
+                const finalWidth = parseFloat(barElem.style.width);
+
+                const startDaysOffset = Math.round(finalLeft / dayWidth);
+                const durationDays = Math.round(finalWidth / dayWidth);
+
+                const newStart = addDays(projectStartDate, startDaysOffset);
+                const newEnd = addDays(newStart, durationDays - 1);
+
+                childTask.startDate = formatDateToISO(newStart);
+                childTask.endDate = formatDateToISO(newEnd);
+
+                isDragging = false;
+                isResizingLeft = false;
+                isResizingRight = false;
+
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+
+                saveGanttData();
+                renderGantt();
+            };
+
+            barElem.addEventListener('mousedown', onMouseDown);
+        }
+
+        function toggleExpand(parentId) {
+            const parent = ganttData.find(p => p.id === parentId);
+            if (parent) {
+                parent.expanded = !parent.expanded;
+                saveGanttData();
+                renderGantt();
+            }
+        }
+
+        function moveParent(parentId, direction) {
+            const idx = ganttData.findIndex(p => p.id === parentId);
+            if (idx === -1) return;
+
+            if (direction === 'up' && idx > 0) {
+                const temp = ganttData[idx];
+                ganttData[idx] = ganttData[idx - 1];
+                ganttData[idx - 1] = temp;
+            } else if (direction === 'down' && idx < ganttData.length - 1) {
+                const temp = ganttData[idx];
+                ganttData[idx] = ganttData[idx + 1];
+                ganttData[idx + 1] = temp;
+            }
+
+            saveGanttData();
+            renderGantt();
+        }
+
+        function addChildTask(parentId) {
+            const parent = ganttData.find(p => p.id === parentId);
+            if (!parent) return;
+
+            const today = new Date();
+            const nextWeek = addDays(today, 7);
+            const isoDate = formatDateToISO(today);
+            const isoNextWeek = formatDateToISO(nextWeek);
+
+            const newChild = {
+                id: 'child-' + Date.now(),
+                title: 'Nuova Sotto-attività',
+                startDate: isoDate,
+                endDate: isoNextWeek,
+                delayDays: 0,
+                progress: 0,
+                delayReason: ""
+            };
+
+            parent.children.push(newChild);
+            parent.expanded = true;
+
+            saveGanttData();
+            renderGantt();
+            openEditModal(newChild.id, false);
+        }
+
+        document.getElementById('addParentBtn').addEventListener('click', () => {
+            const newParent = {
+                id: 'parent-' + Date.now(),
+                title: 'Nuovo Gruppo Attività',
+                isParent: true,
+                expanded: true,
+                color: '#2563eb',
+                bgOpacity: 15,
+                children: []
+            };
+
+            ganttData.push(newParent);
+            saveGanttData();
+            renderGantt();
+            openEditModal(newParent.id, true);
+        });
+
+        function openEditModal(id, isParent) {
+            const modal = document.getElementById('editModal');
+            document.getElementById('editTaskId').value = id;
+
+            if (isParent) {
+                const parent = ganttData.find(p => p.id === id);
+                if (!parent) return;
+
+                document.getElementById('modalTitle').innerText = "Modifica Gruppo Genitore";
+                document.getElementById('editTaskTitle').value = parent.title;
+                document.getElementById('dateInputsGroup').classList.add('hidden');
+                document.getElementById('delayDaysGroup').classList.add('hidden');
+                document.getElementById('progressInputGroup').classList.add('hidden');
+                document.getElementById('colorPickerGroup').classList.remove('hidden');
+
+                document.getElementById('editColorHex').value = parent.color || "#4f46e5";
+                document.getElementById('editOpacity').value = parent.bgOpacity || 15;
+                document.getElementById('opacityValue').innerText = `${parent.bgOpacity || 15}%`;
+
+            } else {
+                let childTask = null;
+                ganttData.forEach(p => {
+                    const found = p.children.find(c => c.id === id);
+                    if (found) childTask = found;
+                });
+
+                if (!childTask) return;
+
+                document.getElementById('modalTitle').innerText = "Modifica Sotto-attività";
+                document.getElementById('editTaskTitle').value = childTask.title;
+                document.getElementById('dateInputsGroup').classList.remove('hidden');
+                document.getElementById('delayDaysGroup').classList.remove('hidden');
+                document.getElementById('progressInputGroup').classList.remove('hidden');
+                document.getElementById('colorPickerGroup').classList.add('hidden');
+
+                document.getElementById('editStartDate').value = childTask.startDate;
+                document.getElementById('editEndDate').value = childTask.endDate;
+                document.getElementById('editDelayDays').value = childTask.delayDays || 0;
+                document.getElementById('editDelayReason').value = childTask.delayReason || "";
+                document.getElementById('editProgress').value = childTask.progress || 0;
+                document.getElementById('progressValue').innerText = `${childTask.progress || 0}%`;
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+        }
+
+        function setPresetColor(colorHex) {
+            document.getElementById('editColorHex').value = colorHex;
+        }
+
+        document.getElementById('editForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('editTaskId').value;
+            const title = document.getElementById('editTaskTitle').value;
+
+            const isParent = ganttData.some(p => p.id === id);
+
+            if (isParent) {
+                const parent = ganttData.find(p => p.id === id);
+                if (parent) {
+                    parent.title = title;
+                    parent.color = document.getElementById('editColorHex').value;
+                    parent.bgOpacity = parseInt(document.getElementById('editOpacity').value, 10);
+                }
+            } else {
+                ganttData.forEach(p => {
+                    const child = p.children.find(c => c.id === id);
+                    if (child) {
+                        child.title = title;
+                        child.startDate = document.getElementById('editStartDate').value;
+                        child.endDate = document.getElementById('editEndDate').value;
+                        child.delayDays = parseInt(document.getElementById('editDelayDays').value, 10) || 0;
+                        child.delayReason = document.getElementById('editDelayReason').value;
+                        child.progress = parseInt(document.getElementById('editProgress').value, 10);
+                    }
+                });
+            }
+
+            saveGanttData();
+            renderGantt();
+            closeEditModal();
+        });
+
+        document.getElementById('editOpacity').addEventListener('input', (e) => {
+            document.getElementById('opacityValue').innerText = `${e.target.value}%`;
+        });
+
+        document.getElementById('editProgress').addEventListener('input', (e) => {
+            document.getElementById('progressValue').innerText = `${e.target.value}%`;
+        });
+
+        function promptDelete(id, isParent) {
+            pendingDeleteId = id;
+            pendingDeleteIsParent = isParent;
+
+            const messageElem = document.getElementById('deleteModalMessage');
+            if (isParent) {
+                messageElem.innerText = "Sei sicuro di voler eliminare questo gruppo genitore? Verranno eliminate anche tutte le sotto-attività collegate.";
+            } else {
+                messageElem.innerText = "Sei sicuro di voler eliminare questa sotto-attività?";
+            }
+
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.add('hidden');
+            pendingDeleteId = null;
+        }
+
+        document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
+            if (!pendingDeleteId) return;
+
+            if (pendingDeleteIsParent) {
+                ganttData = ganttData.filter(p => p.id !== pendingDeleteId);
+            } else {
+                ganttData.forEach(p => {
+                    p.children = p.children.filter(c => c.id !== pendingDeleteId);
+                });
+            }
+
+            saveGanttData();
+            renderGantt();
+            closeDeleteModal();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('editProjectNameBtn').addEventListener('click', editProjectName);
+
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                searchQuery = e.target.value;
+                renderGantt();
+            });
+
+            // Zoom Slider Listener
+            document.getElementById('zoomSlider').addEventListener('input', (e) => {
+                dayWidth = parseInt(e.target.value, 10);
+                renderGantt();
+            });
+
+            // Esporta il sorgente HTML completo con nome del progetto e dati correnti incorporati
+            document.getElementById('exportHtmlBtn').addEventListener('click', () => {
+                const sanitizedProjName = currentProjectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const defaultFileName = `gantt_${sanitizedProjName}_${new Date().toISOString().slice(0, 10)}`;
+                let customName = prompt("Inserisci il nome per il file HTML da esportare:", defaultFileName);
+                
+                if (customName === null) return;
+                customName = customName.trim() || defaultFileName;
+                if (!customName.endsWith('.html')) {
+                    customName += '.html';
+                }
+
+                const currentHtml = document.documentElement.outerHTML;
+                const jsonStr = JSON.stringify(ganttData, null, 4);
+
+                let updatedHtml = currentHtml.replace(
+                    /const DEFAULT_DATA = \[[\s\S]*?\];/,
+                    `const DEFAULT_DATA = ${jsonStr};`
+                );
+
+                updatedHtml = updatedHtml.replace(
+                    /const DEFAULT_PROJECT_NAME = ".*?";/,
+                    `const DEFAULT_PROJECT_NAME = "${escapeHtml(currentProjectName)}";`
+                );
+
+                const dataStr = "data:text/html;charset=utf-8," + encodeURIComponent(updatedHtml);
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", customName);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+            });
+
+            // Esporta JSON con nome personalizzato
+            document.getElementById('exportBtn').addEventListener('click', () => {
+                const sanitizedProjName = currentProjectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const defaultFileName = `gantt_dati_${sanitizedProjName}_${new Date().toISOString().slice(0, 10)}`;
+                let customName = prompt("Inserisci il nome per il file JSON di backup:", defaultFileName);
+                
+                if (customName === null) return;
+                customName = customName.trim() || defaultFileName;
+                if (!customName.endsWith('.json')) {
+                    customName += '.json';
+                }
+
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(ganttData, null, 2));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", customName);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+            });
+
+            document.getElementById('importInput').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const parsed = JSON.parse(event.target.result);
+                        if (Array.isArray(parsed)) {
+                            ganttData = parsed;
+                            saveGanttData();
+                            renderGantt();
+                        }
+                    } catch (err) {
+                    }
+                };
+                reader.readAsText(file);
+            });
+
+            // Svuota completamente la schermata
+            document.getElementById('clearBtn').addEventListener('click', () => {
+                ganttData = [];
+                currentProjectName = "Nuovo Progetto";
+                updateProjectNameUI();
+                saveGanttData();
+                renderGantt();
+            });
+
+            // Carica dati di esempio dimostrativi
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                ganttData = JSON.parse(JSON.stringify(SAMPLE_DATA));
+                currentProjectName = "Progetto Esempio UX/UI";
+                updateProjectNameUI();
+                saveGanttData();
+                renderGantt();
+            });
+        }
+
+        function formatDateToISO(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        function formatShortDate(date) {
+            const d = date.getDate().toString().padStart(2, '0');
+            const m = (date.getMonth() + 1).toString().padStart(2, '0');
+            return `${d}/${m}`;
+        }
+
+        function addDays(date, days) {
+            const result = new Date(date);
+            result.setDate(result.getDate() + days);
+            return result;
+        }
+
+        function getMonday(d) {
+            const date = new Date(d);
+            const day = date.getDay();
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+            return new Date(date.setDate(diff));
+        }
+
+        function getWeekNumber(d) {
+            const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            const dayNum = date.getUTCDay() || 7;
+            date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+            return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+        }
+
+        function getSolidTint(hex, opacity) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) {
+                hex = hex.split('').map(c => c + c).join('');
+            }
+            const r = parseInt(hex.substring(0, 2), 16) || 0;
+            const g = parseInt(hex.substring(2, 4), 16) || 0;
+            const b = parseInt(hex.substring(4, 6), 16) || 0;
+            
+            const nr = Math.round(r * opacity + 255 * (1 - opacity));
+            const ng = Math.round(g * opacity + 255 * (1 - opacity));
+            const nb = Math.round(b * opacity + 255 * (1 - opacity));
+            
+            return `#${((1 << 24) + (nr << 16) + (ng << 8) + nb).toString(16).slice(1)}`;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&amp;|&lt;|&gt;|&quot;|&#039;/g, function(m) {
+                return {
+                    '&amp;': '&',
+                    '&lt;': '<',
+                    '&gt;': '>',
+                    '&quot;': '"',
+                    '&#039;': "'"
+                }[m];
+            }).replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+    </script>
+</body>
+</html>
