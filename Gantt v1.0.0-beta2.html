@@ -1,0 +1,2072 @@
+<!DOCTYPE html>
+<!--
+  ========================================================================
+  Interactive Gantt Project Management Tool (v1.0.0-beta2)
+  Repository GitHub: https://github.com/ERik16180339887/Gantt
+  Copyright (C) 2026
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
+  ------------------------------------------------------------------------
+  Questo programma è software libero: puoi ridistribuirlo e/o modificarlo
+  secondo i termini della Licenza Pubblica Generale GNU (GNU GPL) come 
+  pubblicata dalla Free Software Foundation, versione 3 della licenza o 
+  (a tua scelta) qualsiasi versione successiva.
+
+  Questo programma è distribuito nella speranza che sia utile,
+  ma SENZA ALCUNA GARANZIA; senza neppure la garanzia implicita di
+  COMMERCIALIZZABILITÀ O IDONEITÀ PER UNO SCOPO PARTICOLARE. 
+
+  Vedi la Licenza Pubblica Generale GNU per maggiori dettagli:
+  <https://www.gnu.org/licenses/gpl-3.0.html>
+  ========================================================================
+-->
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagramma di Gantt Interattivo (v1.0.0-beta2)</title>
+    
+    <!-- Tailwind CSS (Styling Utility Framework) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons (Icon set) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- 
+      CUSTOM CSS STYLES / STILI CSS PERSONALIZZATI
+      Gestisce la griglia, i posizionamenti fissi (sticky), le scrollbar e gli elementi di layout.
+      Manages grid styling, sticky positioning, custom scrollbars, and layout elements.
+    -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+        }
+        
+        /* Custom scrollbars for clean look / Barre di scorrimento personalizzate */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Lock Table Layout so columns respect exact widths / Blocca il layout della tabella */
+        #ganttTable {
+            table-layout: fixed;
+            width: max-content;
+        }
+
+        /* Fixed Left Column positioning / Posizionamento colonna sinistra fissa (Sticky) */
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            z-index: 20;
+        }
+        /* Intestazione WBS: fisso in alto e a sinistra con z-index massimo */
+        .sticky-col-header {
+            position: sticky;
+            left: 0;
+            top: 0;
+            z-index: 50 !important;
+        }
+        /* Intestazione Settimane: fisso in alto */
+        .timeline-col-header {
+            position: sticky;
+            top: 0;
+            z-index: 30 !important;
+        }
+
+        /* Resizable Handle on Right Border for Sidebar / Maniglia di ridimensionamento sidebar */
+        .resizer-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            cursor: col-resize;
+            user-select: none;
+            z-index: 55;
+        }
+        .resizer-handle:hover, .resizer-handle.resizing {
+            background-color: #6366f1;
+        }
+
+        /* Timeline Column Resizer Handle / Maniglia di zoom/ridimensionamento giorni timeline */
+        .timeline-resizer-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            cursor: col-resize;
+            user-select: none;
+            z-index: 35;
+        }
+        .timeline-resizer-handle:hover, .timeline-resizer-handle.resizing {
+            background-color: #6366f1;
+        }
+
+        /* Grid lines for days and weeks / Linee della griglia per giorni e settimane */
+        .day-grid-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            border-right: 1px dotted #bbbbbb;
+            pointer-events: none;
+        }
+        .week-grid-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            border-right: 1px solid #cbd5e1;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* Today Dotted Line & Highlight Area / Linea puntata e sfondo evidenziato per il giorno odierno */
+        .today-dotted-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            border-right: 2px dotted #ef4444;
+            pointer-events: none;
+            z-index: 12;
+        }
+        .today-column-bg {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            background-color: rgba(239, 68, 68, 0.08);
+            pointer-events: none;
+            z-index: 4;
+        }
+		
+		/* Nasconde i pulsanti d'azione in Modalità Vista */
+        body.view-mode .action-buttons {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- 
+      TOP HEADER / TOOLBAR
+      Barra superiore contenente branding, nome progetto modificabile e azioni globali (Salva, Importa, Esporta).
+      Top bar containing branding, editable project name, and global action buttons.
+    -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 shadow-sm flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50">
+        <div class="flex items-center space-x-3">
+            <div class="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md">
+                <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <h1 class="text-xl font-bold text-slate-900 tracking-tight">Gestione Progetti Gantt</h1>
+                    <span class="text-xs font-semibold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded border border-indigo-200">v1.0.0-beta4</span>
+                    <span class="text-slate-300 font-light">|</span>
+                    <!-- Project Name Badge / Pulsante nome progetto -->
+                    <button id="editProjectNameBtn" class="flex items-center space-x-1.5 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg border border-indigo-200/60 transition-colors text-sm font-semibold group" title="Clicca per modificare il nome del progetto / Click to edit project name">
+                        <span id="projectNameDisplay">Nuovo Progetto</span>
+                        <i data-lucide="pencil" class="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-600 transition-colors"></i>
+                    </button>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">Pianificazione e condivisione file singolo (Licenza GNU GPLv3 / Single-file sharing under GNU GPLv3)</p>
+            </div>
+        </div>
+
+        <!-- SEARCH AND GLOBAL ACTIONS / Ricerca e comandi globali -->
+        <div class="flex items-center flex-wrap gap-3">
+            <!-- Search Input / Casella di ricerca attività -->
+            <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="searchInput" placeholder="Cerca attività... / Search tasks..." 
+                    class="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-40 lg:w-56 transition-all">
+            </div>
+
+			<!-- Pulsante Modalità Vista / Modifica -->
+			<button id="toggleEditModeBtn" onclick="toggleEditMode()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3.5 py-2 rounded-lg text-sm flex items-center space-x-1.5 transition-colors" title="Attiva/Disattiva Modalità Modifica">
+				<i data-lucide="eye" id="toggleEditIcon" class="w-4 h-4 text-indigo-600"></i>
+				<span id="toggleEditText">Modalità Vista</span>
+			</button>
+			
+            <!-- Add Root Parent Button / Pulsante aggiungi gruppo principale -->
+            <button id="addParentBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-3.5 py-2 rounded-lg text-sm flex items-center space-x-1.5 shadow-sm transition-colors">
+                <i data-lucide="folder-plus" class="w-4 h-4"></i>
+                <span>Nuovo Gruppo</span>
+            </button>
+
+            <div class="h-6 w-px bg-slate-200 mx-1"></div>
+
+            <!-- Export Standalone HTML / Esporta HTML unico standalone -->
+            <button id="exportHtmlBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3.5 py-2 rounded-lg text-sm flex items-center space-x-1.5 shadow-sm transition-colors" title="Genera un singolo file HTML con nome personalizzato / Export standalone HTML">
+                <i data-lucide="file-code" class="w-4 h-4"></i>
+                <span>Esporta HTML Unico</span>
+            </button>
+
+            <!-- Export JSON / Salva dati JSON -->
+            <button id="exportBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3.5 py-2 rounded-lg text-sm flex items-center space-x-1.5 transition-colors" title="Esporta Dati JSON / Export JSON backup">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Salva</span>
+            </button>
+
+            <!-- Import JSON / Importa dati esterni -->
+            <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-2 rounded-lg text-sm flex items-center space-x-1.5 transition-colors cursor-pointer" title="Importa Dati JSON / Import JSON data">
+                <i data-lucide="upload" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Importa</span>
+                <input type="file" id="importInput" accept=".json" class="hidden">
+            </label>
+
+            <!-- Clear & Reset Buttons / Pulsanti pulizia e ripristino -->
+            <button id="clearBtn" class="bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 font-medium px-3 py-2 rounded-lg text-sm flex items-center space-x-1.5 transition-colors" title="Svuota Tutto / Clear All">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+            <button id="resetBtn" class="bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 font-medium px-3 py-2 rounded-lg text-sm flex items-center space-x-1.5 transition-colors" title="Ripristina Esempio / Reset Demo">
+                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN GANTT CONTAINER / Contenitore principale della tabella -->
+    <main class="flex-1 p-4 md:p-6 overflow-hidden flex flex-col">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
+            
+            <!-- GANTT SCROLL AREA / Area scrollabile della tabella e della timeline -->
+            <div id="ganttScrollContainer" class="flex-1 overflow-auto relative">
+                <table id="ganttTable" class="border-collapse text-left">
+                    <!-- Table Header / Intestazione della tabella -->
+                    <thead class="border-b border-slate-200 text-xs text-slate-600 font-semibold">
+                        <tr id="ganttHeaderRow">
+                            <!-- Left Sidebar Header / Intestazione colonna sinistra (Rimosso 'relative' per evitare conflitti con 'sticky') -->
+                            <th id="leftHeaderCol" class="sticky-col-header bg-slate-100 p-3 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                <div class="flex items-center justify-between pr-2">
+                                    <span>Struttura Attività (WBS)</span>
+                                    <span class="text-[10px] text-slate-400 font-normal">Livelli 1 - 2 - 3</span>
+                                </div>
+                                <div id="columnResizer" class="resizer-handle" title="Trascina per regolare la larghezza / Drag to resize column"></div>
+                            </th>
+                            <!-- Dynamic Timeline Weeks Columns generated here / Colonne timeline generate dinamicamente via JS -->
+                        </tr>
+                    </thead>
+                    <!-- Table Body / Corpo della tabella -->
+                    <tbody id="ganttBody" class="divide-y divide-slate-100 text-sm">
+                        <!-- Rows rendered dynamically via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- 
+      CUSTOM EDIT TASK MODAL / Modale di modifica attività e gruppi
+      Permette di modificare titolo, date, ritardi, % di avanzamento ponderato e colori personalizzati.
+    -->
+    <div id="editModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden transform transition-all">
+            <div class="bg-slate-50 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
+                <h3 id="modalTitle" class="font-semibold text-slate-800 text-base">Modifica Attività</h3>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-md">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form id="editForm" class="p-5 space-y-4">
+                <input type="hidden" id="editTaskId">
+                <input type="hidden" id="editTaskLevel">
+                
+                <!-- Task Title / Nome attività -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Nome Attività</label>
+                    <input type="text" id="editTaskTitle" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <!-- Date Range / Intervallo date -->
+                <div id="dateInputsGroup" class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Data Inizio</label>
+                        <input type="date" id="editStartDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Data Fine</label>
+                        <input type="date" id="editEndDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Delay Days / Giorni di ritardo extra e motivazione -->
+                <div id="delayDaysGroup" class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Giorni di Ritardo Extra</label>
+                        <input type="number" id="editDelayDays" min="0" max="90" value="0" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Causa / Nota Ritardo</label>
+                        <input type="text" id="editDelayReason" placeholder="Es. Attesa materiale..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Completion Progress % / Avanzamento percentuale -->
+                <div id="progressInputGroup">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Avanzamento (%): <span id="progressValue" class="text-indigo-600 font-bold">0%</span></label>
+                    </div>
+                    <input type="range" id="editProgress" min="0" max="100" step="5" class="w-full accent-indigo-600 cursor-pointer">
+                </div>
+
+                <!-- Color Options (Level 1 Only) / Opzioni colore e opacità per il gruppo principale -->
+                <div id="colorPickerGroup" class="space-y-3 pt-2 border-t border-slate-100">
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Colore Gruppo Genitore</label>
+                    
+                    <div class="flex items-center space-x-2">
+                        <button type="button" onclick="setPresetColor('#4f46e5')" class="w-7 h-7 rounded-full bg-indigo-600 border-2 border-white ring-2 ring-transparent hover:ring-indigo-300 transition-all"></button>
+                        <button type="button" onclick="setPresetColor('#059669')" class="w-7 h-7 rounded-full bg-emerald-600 border-2 border-white ring-2 ring-transparent hover:ring-emerald-300 transition-all"></button>
+                        <button type="button" onclick="setPresetColor('#d97706')" class="w-7 h-7 rounded-full bg-amber-600 border-2 border-white ring-2 ring-transparent hover:ring-amber-300 transition-all"></button>
+                        <button type="button" onclick="setPresetColor('#dc2626')" class="w-7 h-7 rounded-full bg-red-600 border-2 border-white ring-2 ring-transparent hover:ring-red-300 transition-all"></button>
+                        <button type="button" onclick="setPresetColor('#2563eb')" class="w-7 h-7 rounded-full bg-blue-600 border-2 border-white ring-2 ring-transparent hover:ring-blue-300 transition-all"></button>
+                        <button type="button" onclick="setPresetColor('#7c3aed')" class="w-7 h-7 rounded-full bg-purple-600 border-2 border-white ring-2 ring-transparent hover:ring-purple-300 transition-all"></button>
+                        
+                        <div class="flex items-center space-x-1.5 ml-auto">
+                            <span class="text-xs text-slate-500">Custom:</span>
+                            <input type="color" id="editColorHex" class="w-8 h-8 rounded border border-slate-200 cursor-pointer p-0 bg-transparent">
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs text-slate-600 font-medium">Opacità Evidenziazione Riga: <span id="opacityValue" class="font-bold text-slate-800">15%</span></label>
+                        </div>
+                        <input type="range" id="editOpacity" min="5" max="50" step="1" class="w-full accent-indigo-600 cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- Form Action Buttons / Pulsanti azione modale -->
+                <div class="flex justify-end space-x-2 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50">Annulla</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 
+      CUSTOM CONFIRM DELETE MODAL / Modale di conferma eliminazione
+      Previene cancellazioni accidentali di gruppi o sotto-attività.
+    -->
+    <div id="deleteModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 text-center">
+            <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-1">Conferma Eliminazione</h3>
+            <p id="deleteModalMessage" class="text-sm text-slate-600 mb-6">Sei sicuro di voler eliminare questa attività?</p>
+            <div class="flex justify-center space-x-3">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50">Annulla</button>
+                <button id="confirmDeleteBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 shadow-sm">Elimina</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOOLTIP OVERLAY CONTAINER / Contenitore per tooltip informativi sui ritardi -->
+    <div id="customTooltip" class="fixed hidden z-50 bg-slate-900 text-white text-xs rounded-lg shadow-xl p-3 max-w-xs pointer-events-none transition-opacity duration-150"></div>
+
+    <!-- 
+      MAIN JAVASCRIPT LOGIC / LOGICA JAVASCRIPT PRINCIPALE
+      Gestisce WBS a 3 livelli, ricalcoli ponderati sui giorni, duplicazione alberi, drag & drop, zoom temporale e persistenza.
+    -->
+    <script>
+        /**
+         * Global Constants and State / Costanti e Stato Globale
+         * DEFAULT_DATA and DEFAULT_PROJECT_ID are dynamically replaced during standalone HTML export.
+         * DEFAULT_DATA e DEFAULT_PROJECT_ID vengono popolati dinamicamente durante l'esportazione HTML.
+         */
+        const DEFAULT_DATA = [];
+        const DEFAULT_PROJECT_NAME = "Nuovo Progetto";
+        const DEFAULT_PROJECT_ID = "proj_default";
+
+        // Demo Sample Data (3-level WBS hierarchy) / Dati di esempio dimostrativi (Gerarchia WBS a 3 livelli)
+        const SAMPLE_DATA = [
+            {
+                id: "parent-1",
+                title: "1. Fase di Progettazione & UX",
+                isParent: true,
+                expanded: true,
+                color: "#4f46e5",
+                bgOpacity: 12,
+                children: [
+                    {
+                        id: "child-1-1",
+                        title: "1.1 Analisi & Requisiti",
+                        expanded: true,
+                        startDate: "2026-10-05",
+                        endDate: "2026-10-16",
+                        delayDays: 0,
+                        progress: 100,
+                        delayReason: "",
+                        children: [
+                            { id: "subchild-1-1-1", title: "Interviste Stakeholder", startDate: "2026-10-05", endDate: "2026-10-09", delayDays: 0, progress: 100, delayReason: "" },
+                            { id: "subchild-1-1-2", title: "Stesura Documento Requisiti", startDate: "2026-10-10", endDate: "2026-10-16", delayDays: 0, progress: 100, delayReason: "" }
+                        ]
+                    },
+                    {
+                        id: "child-1-2",
+                        title: "1.2 Wireframe e Prototipazione",
+                        expanded: true,
+                        startDate: "2026-10-12",
+                        endDate: "2026-10-21",
+                        delayDays: 4,
+                        progress: 50,
+                        delayReason: "Attesa feedback cliente",
+                        children: [
+                            { id: "subchild-1-2-1", title: "Bozza Layout Figma", startDate: "2026-10-12", endDate: "2026-10-18", delayDays: 2, progress: 80, delayReason: "Revisione interna" },
+                            { id: "subchild-1-2-2", title: "Test di Usabilità UX", startDate: "2026-10-19", endDate: "2026-10-21", delayDays: 2, progress: 20, delayReason: "Ritardo partecipanti" }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: "parent-2",
+                title: "2. Sviluppo Frontend & Backend",
+                isParent: true,
+                expanded: true,
+                color: "#059669",
+                bgOpacity: 15,
+                children: [
+                    {
+                        id: "child-2-1",
+                        title: "2.1 Architettura Database",
+                        expanded: true,
+                        startDate: "2026-10-19",
+                        endDate: "2026-11-04",
+                        delayDays: 0,
+                        progress: 60,
+                        delayReason: "",
+                        children: [
+                            { id: "subchild-2-1-1", title: "Modellazione Schema SQL", startDate: "2026-10-19", endDate: "2026-10-26", delayDays: 0, progress: 100, delayReason: "" },
+                            { id: "subchild-2-1-2", title: "Script Migrazione Dati", startDate: "2026-10-27", endDate: "2026-11-04", delayDays: 0, progress: 20, delayReason: "" }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        let ganttData = [];
+        let currentProjectName = DEFAULT_PROJECT_NAME;
+        let currentProjectId = DEFAULT_PROJECT_ID;
+        let weeksHeader = [];
+        let projectStartDate = null;
+        let projectEndDate = null;
+        let pendingDeleteId = null;
+        let pendingDeleteLevel = 1;
+        let searchQuery = "";
+		let isEditMode = localStorage.getItem('gantt_edit_mode') === 'true';
+
+        // UI Layout Configuration / Configurazione layout interfaccia
+        let leftColWidth = parseInt(localStorage.getItem('gantt_left_col_width_v1'), 10) || 600;
+        let dayWidth = parseFloat(localStorage.getItem('gantt_day_width_v1')) || 22;
+        const WEEK_DAYS = 7;
+
+        // Initialization Listener / Avvio applicazione al caricamento del DOM
+        window.addEventListener('DOMContentLoaded', () => {
+            loadGanttData();
+            setupEventListeners();
+            setupColumnResizer();
+			applyEditModeUI();
+            lucide.createIcons();
+            renderGantt();
+        });
+
+        /**
+         * Load data from localStorage using project ID isolation.
+         * Carica i dati dal localStorage isolando il contesto tramite l'ID del progetto.
+         */
+        function loadGanttData() {
+            if (typeof DEFAULT_PROJECT_ID !== 'undefined' && DEFAULT_PROJECT_ID) {
+                currentProjectId = DEFAULT_PROJECT_ID;
+            } else {
+                currentProjectId = "proj_" + Date.now();
+            }
+
+            const storageKey = 'gantt_chart_data_' + currentProjectId;
+            const stored = localStorage.getItem(storageKey);
+
+            if (stored) {
+                try {
+                    ganttData = JSON.parse(stored);
+                } catch (e) {
+                    ganttData = Array.isArray(DEFAULT_DATA) ? JSON.parse(JSON.stringify(DEFAULT_DATA)) : [];
+                }
+            } else if (Array.isArray(DEFAULT_DATA) && DEFAULT_DATA.length > 0) {
+                ganttData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                saveGanttData();
+            } else {
+                ganttData = [];
+            }
+
+            const storedName = localStorage.getItem('gantt_project_name_' + currentProjectId);
+            if (storedName) {
+                currentProjectName = storedName;
+            } else if (typeof DEFAULT_PROJECT_NAME !== 'undefined' && DEFAULT_PROJECT_NAME) {
+                currentProjectName = DEFAULT_PROJECT_NAME;
+            }
+
+            updateProjectNameUI();
+            calculateRollups();
+        }
+
+        /**
+         * Save current state to localStorage.
+         * Salva lo stato corrente nel localStorage.
+         */
+        function saveGanttData() {
+            localStorage.setItem('gantt_chart_data_' + currentProjectId, JSON.stringify(ganttData));
+            localStorage.setItem('gantt_project_name_' + currentProjectId, currentProjectName);
+        }
+
+		function applyEditModeUI() {
+			const btnText = document.getElementById('toggleEditText');
+			const btnIcon = document.getElementById('toggleEditIcon');
+
+			if (isEditMode) {
+				document.body.classList.remove('view-mode');
+				if (btnText) btnText.innerText = "Modalità Modifica";
+				if (btnIcon) {
+					btnIcon.setAttribute('data-lucide', 'pencil');
+					btnIcon.className = "w-4 h-4 text-amber-600";
+				}
+			} else {
+				document.body.classList.add('view-mode');
+				if (btnText) btnText.innerText = "Modalità Vista";
+				if (btnIcon) {
+					btnIcon.setAttribute('data-lucide', 'eye');
+					btnIcon.className = "w-4 h-4 text-indigo-600";
+				}
+			}
+			lucide.createIcons();
+		}
+
+		function toggleEditMode() {
+			isEditMode = !isEditMode;
+			localStorage.setItem('gantt_edit_mode', isEditMode);
+			applyEditModeUI();
+		}
+		
+        function updateProjectNameUI() {
+            document.getElementById('projectNameDisplay').innerText = currentProjectName;
+			document.title = currentProjectName; // <-- Aggiorna l'etichetta della scheda del browser
+        }
+
+        function editProjectName() {
+            const newName = prompt("Inserisci il nome del Progetto / Enter project name:", currentProjectName);
+            if (newName !== null && newName.trim() !== "") {
+                currentProjectName = newName.trim();
+                updateProjectNameUI();
+                saveGanttData();
+            }
+        }
+
+        /**
+         * Calculate task duration in effective working days (including delays).
+         * Calcola la durata in giorni effettivi di lavoro (inclusi eventuali ritardi).
+         */
+        function getTaskDurationDays(startDateStr, endDateStr, delayDays = 0) {
+            if (!startDateStr || !endDateStr) return 1;
+            const start = new Date(startDateStr);
+            const baseEnd = new Date(endDateStr);
+            const diffTime = Math.max(0, baseEnd - start);
+            const baseDays = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1);
+            return baseDays + (parseInt(delayDays) || 0);
+        }
+
+        /**
+         * Automatic 3-level cascading recalculation with WEIGHTED PROGRESS based on days duration.
+         * Ricalcolo automatico a cascata a 3 livelli con AVANZAMENTO PONDERATO basato sulla durata in giorni.
+         */
+        function calculateRollups() {
+            ganttData.forEach(parent => {
+                if (!parent.children || parent.children.length === 0) {
+                    parent.startDate = "";
+                    parent.endDate = "";
+                    parent.plannedEndDate = "";
+                    parent.progress = 0;
+                    return;
+                }
+
+                let parentMinStart = null;
+                let parentMaxPlannedEnd = null;
+                let parentMaxEffectiveEnd = null;
+                
+                let parentTotalWeightedProgressDays = 0;
+                let parentTotalDurationDays = 0;
+
+                parent.children.forEach(child => {
+                    if (child.children && child.children.length > 0) {
+                        let childMinStart = null;
+                        let childMaxPlannedEnd = null;
+                        let childMaxEffectiveEnd = null;
+                        
+                        let childTotalWeightedProgressDays = 0;
+                        let childTotalDurationDays = 0;
+
+                        child.children.forEach(subchild => {
+                            const subStart = new Date(subchild.startDate);
+                            const subBaseEnd = new Date(subchild.endDate);
+                            const subEffectiveEnd = addDays(subBaseEnd, subchild.delayDays || 0);
+
+                            if (!childMinStart || subStart < childMinStart) childMinStart = subStart;
+                            if (!childMaxPlannedEnd || subBaseEnd > childMaxPlannedEnd) childMaxPlannedEnd = subBaseEnd;
+                            if (!childMaxEffectiveEnd || subEffectiveEnd > childMaxEffectiveEnd) childMaxEffectiveEnd = subEffectiveEnd;
+
+                            const subDuration = getTaskDurationDays(subchild.startDate, subchild.endDate, subchild.delayDays);
+                            const subProgress = parseInt(subchild.progress) || 0;
+                            
+                            childTotalWeightedProgressDays += subDuration * (subProgress / 100);
+                            childTotalDurationDays += subDuration;
+                        });
+
+                        child.startDate = childMinStart ? formatDateToISO(childMinStart) : "";
+                        child.plannedEndDate = childMaxPlannedEnd ? formatDateToISO(childMaxPlannedEnd) : "";
+                        child.endDate = childMaxEffectiveEnd ? formatDateToISO(childMaxEffectiveEnd) : "";
+                        
+                        child.progress = childTotalDurationDays > 0 
+                            ? Math.round((childTotalWeightedProgressDays / childTotalDurationDays) * 100) 
+                            : 0;
+
+                        if (childMaxPlannedEnd && childMaxEffectiveEnd) {
+                            const diff = Math.round((childMaxEffectiveEnd - childMaxPlannedEnd) / (1000 * 60 * 60 * 24));
+                            child.delayDays = Math.max(0, diff);
+                        }
+                    }
+
+                    if (child.startDate) {
+                        const cStart = new Date(child.startDate);
+                        const cBaseEnd = new Date(child.plannedEndDate || child.endDate);
+                        const cEffectiveEnd = addDays(new Date(child.endDate), child.children && child.children.length > 0 ? 0 : (child.delayDays || 0));
+
+                        if (!parentMinStart || cStart < parentMinStart) parentMinStart = cStart;
+                        if (!parentMaxPlannedEnd || cBaseEnd > parentMaxPlannedEnd) parentMaxPlannedEnd = cBaseEnd;
+                        if (!parentMaxEffectiveEnd || cEffectiveEnd > parentMaxEffectiveEnd) parentMaxEffectiveEnd = cEffectiveEnd;
+                    }
+
+                    const childDuration = getTaskDurationDays(child.startDate, child.plannedEndDate || child.endDate, child.delayDays);
+                    const childProgress = parseInt(child.progress) || 0;
+
+                    parentTotalWeightedProgressDays += childDuration * (childProgress / 100);
+                    parentTotalDurationDays += childDuration;
+                });
+
+                parent.startDate = parentMinStart ? formatDateToISO(parentMinStart) : "";
+                parent.plannedEndDate = parentMaxPlannedEnd ? formatDateToISO(parentMaxPlannedEnd) : "";
+                parent.endDate = parentMaxEffectiveEnd ? formatDateToISO(parentMaxEffectiveEnd) : "";
+                
+                parent.progress = parentTotalDurationDays > 0 
+                    ? Math.round((parentTotalWeightedProgressDays / parentTotalDurationDays) * 100) 
+                    : 0;
+            });
+        }
+
+        /**
+         * Calculate timeline date range boundaries (weeks/months).
+         * Calcola i confini temporali della timeline principale (settimane/mesi).
+         */
+        function calculateTimelineRange() {
+            let allDates = [];
+
+            ganttData.forEach(parent => {
+                if (parent.startDate) allDates.push(new Date(parent.startDate));
+                if (parent.endDate) allDates.push(new Date(parent.endDate));
+
+                parent.children.forEach(child => {
+                    if (child.startDate) allDates.push(new Date(child.startDate));
+                    if (child.endDate) {
+                        allDates.push(new Date(child.endDate));
+                        const effEnd = addDays(new Date(child.endDate), child.delayDays || 0);
+                        allDates.push(effEnd);
+                    }
+
+                    if (child.children) {
+                        child.children.forEach(subchild => {
+                            if (subchild.startDate) allDates.push(new Date(subchild.startDate));
+                            if (subchild.endDate) {
+                                allDates.push(new Date(subchild.endDate));
+                                const subEffEnd = addDays(new Date(subchild.endDate), subchild.delayDays || 0);
+                                allDates.push(subEffEnd);
+                            }
+                        });
+                    }
+                });
+            });
+
+            if (allDates.length === 0) {
+                const today = new Date();
+                allDates.push(today);
+                allDates.push(addDays(today, 30));
+            }
+
+            let minDate = new Date(Math.min(...allDates));
+            let maxDate = new Date(Math.max(...allDates));
+
+            minDate = getMonday(minDate);
+            maxDate = addDays(getMonday(maxDate), 14);
+
+            projectStartDate = minDate;
+            projectEndDate = maxDate;
+
+            weeksHeader = [];
+            let curr = new Date(projectStartDate);
+
+            while (curr < projectEndDate) {
+                const weekEnd = addDays(curr, 6);
+                const weekNum = getWeekNumber(curr);
+                
+                weeksHeader.push({
+                    label: `Sett. ${weekNum}`,
+                    rangeText: `${formatShortDate(curr)} - ${formatShortDate(weekEnd)}`,
+                    startDate: new Date(curr),
+                    endDate: weekEnd
+                });
+
+                curr = addDays(curr, 7);
+            }
+        }
+
+        /**
+         * Generate background grid lines (dotted days, solid weeks) and today column highlight.
+         * Genera le linee di sfondo della griglia (giorni puntati, settimane continue) ed evidenzia il giorno corrente.
+         */
+        function createBackgroundGridHtml() {
+            let html = '';
+            let totalDays = weeksHeader.length * WEEK_DAYS;
+            
+            const today = new Date();
+            const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const startNormalized = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
+            const diffDaysToday = Math.round((todayNormalized - startNormalized) / (1000 * 60 * 60 * 24));
+
+            for (let d = 0; d < totalDays; d++) {
+                const leftPos = d * dayWidth;
+                
+                if (d === diffDaysToday) {
+                    html += `<div class="today-column-bg" style="left: ${leftPos}px; width: ${dayWidth}px;" title="Oggi / Today"></div>`;
+                }
+
+                if (d === diffDaysToday || d === diffDaysToday + 1) {
+                    html += `<div class="today-dotted-line" style="left: ${leftPos}px;" title="Oggi / Today"></div>`;
+                } else if (d > 0 && d % WEEK_DAYS === 0) {
+                    html += `<div class="week-grid-line" style="left: ${leftPos}px;"></div>`;
+                } else if (d > 0) {
+                    html += `<div class="day-grid-line" style="left: ${leftPos}px;"></div>`;
+                }
+            }
+            return html;
+        }
+
+        /**
+         * Main rendering engine for the 3-level WBS Gantt table.
+         * Motore di rendering principale per la tabella Gantt WBS a 3 livelli.
+         */
+        function renderGantt() {
+            calculateRollups();
+            calculateTimelineRange();
+
+            const headerRow = document.getElementById('ganttHeaderRow');
+            headerRow.innerHTML = `
+                <th id="leftHeaderCol" class="sticky-col-header bg-slate-100 p-3 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]" style="width: ${leftColWidth}px; min-width: ${leftColWidth}px; max-width: ${leftColWidth}px;">
+                    <div class="flex items-center justify-between pr-2">
+                        <span>Struttura Attività (WBS)</span>
+                        <span class="text-[10px] text-slate-400 font-normal">Livelli 1 - 2 - 3</span>
+                    </div>
+                    <div id="columnResizer" class="resizer-handle" title="Trascina per regolare la larghezza / Drag to resize column"></div>
+                </th>
+            `;
+
+            setupColumnResizer();
+
+            const colWidth = dayWidth * WEEK_DAYS;
+
+            weeksHeader.forEach(week => {
+                const th = document.createElement('th');
+                th.className = "p-2 border-r border-slate-200 text-center font-medium relative timeline-col-header bg-slate-100";
+                th.style.cssText = `width: ${colWidth}px; min-width: ${colWidth}px; max-width: ${colWidth}px;`;
+                th.innerHTML = `
+                    <div class="text-xs font-bold text-slate-700">${week.label}</div>
+                    <div class="text-[10px] text-slate-400 font-normal">${week.rangeText}</div>
+                    <div class="timeline-resizer-handle" title="Ridimensiona zoom / Resize zoom"></div>
+                `;
+                headerRow.appendChild(th);
+            });
+
+            setupTimelineResizer();
+
+            const tbody = document.getElementById('ganttBody');
+            tbody.innerHTML = "";
+
+            const query = searchQuery ? searchQuery.toLowerCase().trim() : "";
+
+            // Filter data structure based on search query / Filtra la struttura dati in base alla ricerca
+            const filteredData = ganttData.map(parent => {
+                const parentMatches = parent.title.toLowerCase().includes(query);
+                
+                const filteredChildren = parent.children ? parent.children.map(child => {
+                    const childMatches = child.title.toLowerCase().includes(query);
+                    
+                    const filteredSubchildren = child.children ? child.children.filter(sub => {
+                        return sub.title.toLowerCase().includes(query);
+                    }) : [];
+
+                    const subMatches = filteredSubchildren.length > 0;
+
+                    if (parentMatches || childMatches || subMatches) {
+                        return {
+                            ...child,
+                            children: (parentMatches || childMatches) ? (child.children || []) : filteredSubchildren
+                        };
+                    }
+                    return null;
+                }).filter(Boolean) : [];
+
+                const childrenMatch = filteredChildren.length > 0;
+
+                if (parentMatches || childrenMatch) {
+                    return {
+                        ...parent,
+                        children: parentMatches ? (parent.children || []) : filteredChildren
+                    };
+                }
+                return null;
+            }).filter(Boolean);
+
+            if (filteredData.length === 0) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = `
+                    <td colspan="${weeksHeader.length + 1}" class="text-center py-12 text-slate-400">
+                        <i data-lucide="search-x" class="w-10 h-10 mx-auto mb-2 opacity-40"></i>
+                        <p class="text-sm font-medium">Nessuna attività corrisponde alla ricerca. / No matching tasks found.</p>
+                    </td>
+                `;
+                tbody.appendChild(emptyRow);
+                lucide.createIcons();
+                return;
+            }
+
+            filteredData.forEach((parent, parentIdx) => {
+                const hexColor = parent.color || "#4f46e5";
+                const opacityVal = (parent.bgOpacity || 15) / 100;
+                const solidBg = getSolidTint(hexColor, opacityVal);
+
+                const parentDateStr = (parent.startDate && parent.endDate) ? `${formatShortDate(new Date(parent.startDate))} - ${formatShortDate(new Date(parent.endDate))}` : '';
+
+                // --- LEVEL 1: PARENT ROW / Riga Gruppo Principale ---
+                const parentRow = document.createElement('tr');
+                parentRow.className = "hover:brightness-95 transition-all group border-b border-slate-200/80";
+
+                const sidebarCell = document.createElement('td');
+                sidebarCell.className = "sticky-col px-2.5 py-1.5 font-semibold text-slate-800 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]";
+                sidebarCell.style.cssText = `background-color: ${solidBg}; border-top: 4px solid ${hexColor}; width: ${leftColWidth}px; min-width: ${leftColWidth}px; max-width: ${leftColWidth}px;`;
+                sidebarCell.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2 overflow-hidden mr-2">
+                            <button onclick="toggleExpand('${parent.id}', 1)" class="text-slate-500 hover:text-slate-800 p-1 rounded">
+                                <i data-lucide="${parent.expanded ? 'chevron-down' : 'chevron-right'}" class="w-4 h-4"></i>
+                            </button>
+                            <span class="truncate text-sm font-semibold" title="${escapeHtml(parent.title)}">${escapeHtml(parent.title)}</span>
+                        </div>
+                        <div class="flex items-center space-x-2 shrink-0">
+                            <!-- Date and Progress / Date e Avanzamento -->
+                            <div class="text-right flex flex-col justify-center">
+                                <span class="text-[10px] text-slate-500 font-medium leading-tight">${parentDateStr}</span>
+                                <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-white/70 text-slate-700 border border-slate-200/50" title="Avanzamento Ponderato / Weighted Progress">${parent.progress}%</span>
+                            </div>
+                            <div class="action-buttons flex items-center space-x-1 border-l border-slate-200/60 pl-2">
+                                <button onclick="moveParent('${parent.id}', 'up')" ${parentIdx === 0 ? 'disabled class="opacity-30 text-slate-400"' : 'class="p-1 hover:bg-slate-200/60 rounded text-slate-600"'} title="Sposta Su / Move Up">
+                                    <i data-lucide="arrow-up" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button onclick="moveParent('${parent.id}', 'down')" ${parentIdx === filteredData.length - 1 ? 'disabled class="opacity-30 text-slate-400"' : 'class="p-1 hover:bg-slate-200/60 rounded text-slate-600"'} title="Sposta Giù / Move Down">
+                                    <i data-lucide="arrow-down" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button onclick="duplicateParent('${parent.id}')" class="p-1 hover:bg-indigo-100 text-indigo-600 rounded" title="Duplica Gruppo e Sotto-attività / Duplicate Group & Subtasks">
+                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button onclick="addChildTask('${parent.id}')" class="p-1 hover:bg-indigo-100 text-indigo-600 rounded" title="Aggiungi Sotto-attività (Livello 2) / Add Child">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="openEditModal('${parent.id}', 1)" class="p-1 hover:bg-slate-200/60 rounded text-slate-600" title="Modifica Gruppo / Edit">
+                                    <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button onclick="promptDelete('${parent.id}', 1)" class="p-1 hover:bg-red-100 text-red-600 rounded" title="Elimina / Delete">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                parentRow.appendChild(sidebarCell);
+
+                const timelineCell = document.createElement('td');
+                timelineCell.colSpan = weeksHeader.length;
+                timelineCell.className = "p-0 relative h-12";
+                timelineCell.style.cssText = `background-color: ${solidBg}; border-top: 4px solid ${hexColor};`;
+
+                timelineCell.innerHTML = createBackgroundGridHtml();
+
+                if (parent.startDate && parent.endDate) {
+                    const plannedEnd = parent.plannedEndDate || parent.endDate;
+                    const hasParentDelay = new Date(parent.endDate) > new Date(plannedEnd);
+
+                    const basePos = calculateBarPosition(parent.startDate, plannedEnd);
+
+                    let delayBarHtml = '';
+                    if (hasParentDelay) {
+                        const effectivePos = calculateBarPosition(parent.startDate, parent.endDate);
+                        const delayWidth = effectivePos.width - basePos.width;
+                        const delayLeft = basePos.left + basePos.width;
+
+                        const plannedEndDateObj = new Date(plannedEnd);
+                        const effectiveEndDateObj = new Date(parent.endDate);
+                        const parentDelayDays = Math.round((effectiveEndDateObj - plannedEndDateObj) / (1000 * 60 * 60 * 24));
+
+                        delayBarHtml = `
+                            <div class="absolute h-6 top-2.5 rounded-r-md bg-amber-500 border-t border-b border-r border-amber-600 flex items-center justify-center shadow-sm cursor-pointer group/delay z-10"
+                                 style="left: ${delayLeft}px; width: ${delayWidth}px;"
+                                 data-delay-info="Ritardo complessivo gruppo / Group total delay: +${parentDelayDays} giorni. Fine effettiva / Effective end: ${formatShortDate(effectiveEndDateObj)}">
+                                <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-white"></i>
+                            </div>
+                        `;
+                    }
+
+                    const parentBar = document.createElement('div');
+                    parentBar.className = "absolute h-6 top-2.5 rounded-md shadow-sm border-2 border-slate-900/40 overflow-hidden flex items-center z-10";
+                    
+                    if (hasParentDelay) {
+                        parentBar.style.cssText = `left: ${basePos.left}px; width: ${basePos.width}px; background-color: ${hexColor}; border-top-right-radius: 0; border-bottom-right-radius: 0;`;
+                    } else {
+                        parentBar.style.cssText = `left: ${basePos.left}px; width: ${basePos.width}px; background-color: ${hexColor};`;
+                    }
+
+                    parentBar.innerHTML = `
+                        <div class="h-full bg-black/20" style="width: ${parent.progress}%;"></div>
+                        <span class="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white drop-shadow-sm px-2 truncate">
+                            ${parent.progress}% (${formatShortDate(new Date(parent.startDate))} - ${formatShortDate(new Date(parent.endDate))})
+                        </span>
+                    `;
+
+                    timelineCell.appendChild(parentBar);
+                    if (hasParentDelay) {
+                        timelineCell.insertAdjacentHTML('beforeend', delayBarHtml);
+                    }
+                }
+
+                parentRow.appendChild(timelineCell);
+                tbody.appendChild(parentRow);
+
+                // --- LEVEL 2: CHILD ROWS / Sotto-attività ---
+                if ((parent.expanded || query) && parent.children) {
+                    parent.children.forEach((child, childIdx) => {
+                        const hasSubchildren = child.children && child.children.length > 0;
+                        const childRow = document.createElement('tr');
+                        childRow.className = "hover:brightness-95 transition-all border-b border-slate-100";
+
+                        const hasDelay = (child.delayDays || 0) > 0;
+                        const delayDays = child.delayDays || 0;
+
+                        const childSidebar = document.createElement('td');
+                        childSidebar.className = "sticky-col p-2 pl-6 text-xs font-semibold text-slate-700 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]";
+                        childSidebar.style.cssText = `background-color: ${solidBg}; width: ${leftColWidth}px; min-width: ${leftColWidth}px; max-width: ${leftColWidth}px;`;
+                        childSidebar.innerHTML = `
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-1.5 overflow-hidden mr-2">
+                                    <button onclick="toggleExpand('${child.id}', 2)" class="text-slate-500 hover:text-slate-800 p-0.5 rounded ${hasSubchildren ? '' : 'invisible'}">
+                                        <i data-lucide="${child.expanded !== false ? 'chevron-down' : 'chevron-right'}" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                    <i data-lucide="corner-down-right" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+                                    <span class="truncate font-medium" title="${escapeHtml(child.title)}">${escapeHtml(child.title)}</span>
+                                    ${hasDelay ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 shrink-0" title="Ritardo / Delay: +${delayDays}g"><i data-lucide="alert-triangle" class="w-3 h-3 mr-0.5 text-amber-600"></i>+${delayDays}g</span>` : ''}
+                                </div>
+                                <div class="flex items-center space-x-2 shrink-0">
+                                    <!-- Date and Progress / Date e Avanzamento -->
+                                    <div class="text-right flex flex-col justify-center">
+                                        <span class="text-[9px] text-slate-400 font-medium leading-tight">${child.startDate ? formatShortDate(new Date(child.startDate)) : ''} - ${child.endDate ? formatShortDate(new Date(child.endDate)) : ''}</span>
+                                        <span class="text-[10px] text-slate-500 font-semibold">${child.progress}%</span>
+                                    </div>
+                                    <div class="action-buttons flex items-center space-x-1 border-l border-slate-200/60 pl-2">
+                                        <button onclick="moveChild('${parent.id}', '${child.id}', 'up')" ${childIdx === 0 ? 'disabled class="opacity-30 text-slate-400"' : 'class="p-1 hover:bg-slate-200/60 rounded text-slate-500"'} title="Sposta Su / Up">
+                                            <i data-lucide="arrow-up" class="w-3 h-3"></i>
+                                        </button>
+                                        <button onclick="moveChild('${parent.id}', '${child.id}', 'down')" ${childIdx === parent.children.length - 1 ? 'disabled class="opacity-30 text-slate-400"' : 'class="p-1 hover:bg-slate-200/60 rounded text-slate-500"'} title="Sposta Giù / Down">
+                                            <i data-lucide="arrow-down" class="w-3 h-3"></i>
+                                        </button>
+                                        <button onclick="duplicateChild('${parent.id}', '${child.id}')" class="p-1 hover:bg-indigo-100 text-indigo-600 rounded" title="Duplica Sotto-attività / Duplicate Child">
+                                            <i data-lucide="copy" class="w-3 h-3"></i>
+                                        </button>
+                                        <button onclick="addSubchildTask('${parent.id}', '${child.id}')" class="p-1 hover:bg-indigo-100 text-indigo-600 rounded" title="Aggiungi Sotto-sotto-attività (Livello 3) / Add Subchild">
+                                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                        <button onclick="openEditModal('${child.id}', 2)" class="p-1 hover:bg-slate-200/60 rounded text-slate-500" title="Modifica / Edit">
+                                            <i data-lucide="edit-2" class="w-3 h-3"></i>
+                                        </button>
+                                        <button onclick="promptDelete('${child.id}', 2)" class="p-1 hover:bg-red-100 text-red-500 rounded" title="Elimina / Delete">
+                                            <i data-lucide="trash" class="w-3 h-3"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        childRow.appendChild(childSidebar);
+
+                        const childTimeline = document.createElement('td');
+                        childTimeline.colSpan = weeksHeader.length;
+                        childTimeline.className = "p-0 relative h-10";
+                        childTimeline.style.backgroundColor = solidBg;
+
+                        childTimeline.innerHTML = createBackgroundGridHtml();
+
+                        if (child.startDate && child.endDate) {
+                            const plannedEnd = child.plannedEndDate || child.endDate;
+                            const basePos = calculateBarPosition(child.startDate, plannedEnd);
+
+                            let delayBarHtml = '';
+                            if (hasDelay) {
+                                const delayWidth = delayDays * dayWidth;
+                                const delayLeft = basePos.left + basePos.width;
+                                const actualEnd = addDays(new Date(plannedEnd), delayDays);
+
+                                delayBarHtml = `
+                                    <div class="absolute h-6 top-2 rounded-r-md bg-amber-500/90 border-t border-b border-r border-amber-600 flex items-center justify-center cursor-pointer shadow-sm group/delay z-10"
+                                         style="left: ${delayLeft}px; width: ${delayWidth}px;"
+                                         data-delay-info="Ritardo extra / Extra delay: +${delayDays} giorni. Fine effettiva / Effective end: ${formatShortDate(actualEnd)}. Causa / Cause: ${escapeHtml(child.delayReason || 'N/D')}">
+                                        <i data-lucide="alert-triangle" class="w-3 h-3 text-white"></i>
+                                    </div>
+                                `;
+                            }
+
+                            const taskBar = document.createElement('div');
+                            taskBar.className = "absolute h-6 top-2 rounded-md shadow-sm border border-slate-800/10 flex items-center justify-between cursor-move group/bar z-10";
+                            
+                            if (hasDelay) {
+                                taskBar.style.cssText = `left: ${basePos.left}px; width: ${basePos.width}px; background-color: ${hexColor}; border-top-right-radius: 0; border-bottom-right-radius: 0;`;
+                            } else {
+                                taskBar.style.cssText = `left: ${basePos.left}px; width: ${basePos.width}px; background-color: ${hexColor};`;
+                            }
+
+                            const childBarDateStr = `${formatShortDate(new Date(child.startDate))} - ${formatShortDate(new Date(child.endDate))}`;
+                            taskBar.innerHTML = `
+                                <div class="w-2 h-full cursor-ew-resize hover:bg-white/30 rounded-l-md transition-colors" data-handle="left" title="Trascina inizio / Resize start"></div>
+                                <div class="flex-1 h-full relative overflow-hidden flex items-center pointer-events-none">
+                                    <div class="h-full bg-black/20 transition-all" style="width: ${child.progress}%;"></div>
+                                    <span class="absolute inset-0 flex items-center justify-center px-2 text-[10px] font-medium text-white truncate drop-shadow-sm">
+                                        ${child.progress}% (${childBarDateStr})
+                                    </span>
+                                </div>
+                                <div class="w-2 h-full cursor-ew-resize hover:bg-white/30 rounded-r-md transition-colors" data-handle="right" title="Trascina fine / Resize end"></div>
+                            `;
+
+                            childTimeline.appendChild(taskBar);
+                            if (hasDelay) {
+                                childTimeline.insertAdjacentHTML('beforeend', delayBarHtml);
+                            }
+
+                            if (!hasSubchildren) {
+                                attachDragEvents(taskBar, child, 2, parent.id);
+                            }
+                        }
+
+                        childRow.appendChild(childTimeline);
+                        tbody.appendChild(childRow);
+
+                        // --- LEVEL 3: SUBCHILD ROWS / Sotto-sotto-attività ---
+                        if ((child.expanded !== false || query) && child.children) {
+                            child.children.forEach((subchild, subIdx) => {
+                                const subRow = document.createElement('tr');
+                                subRow.className = "hover:brightness-95 transition-all border-b border-slate-100/70";
+
+                                const hasSubDelay = (subchild.delayDays || 0) > 0;
+                                const subDelayDays = subchild.delayDays || 0;
+
+                                const subSidebar = document.createElement('td');
+                                subSidebar.className = "sticky-col p-1.5 pl-16 text-[11px] text-slate-600 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]";
+                                subSidebar.style.cssText = `background-color: ${solidBg}; width: ${leftColWidth}px; min-width: ${leftColWidth}px; max-width: ${leftColWidth}px;`;
+                                subSidebar.innerHTML = `
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center space-x-1.5 overflow-hidden mr-2">
+                                            <i data-lucide="corner-down-right" class="w-3 h-3 text-slate-400 shrink-0"></i>
+                                            <span class="truncate" title="${escapeHtml(subchild.title)}">${escapeHtml(subchild.title)}</span>
+                                            ${hasSubDelay ? `<span class="inline-flex items-center px-1 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 shrink-0" title="Ritardo / Delay: +${subDelayDays}g">+${subDelayDays}g</span>` : ''}
+                                        </div>
+                                        <div class="flex items-center space-x-2 shrink-0">
+                                            <!-- Date and Progress / Date e Avanzamento -->
+                                            <div class="text-right flex flex-col justify-center">
+                                                <span class="text-[8px] text-slate-400 font-medium leading-tight">${subchild.startDate ? formatShortDate(new Date(subchild.startDate)) : ''} - ${subchild.endDate ? formatShortDate(new Date(subchild.endDate)) : ''}</span>
+                                                <span class="text-[9px] text-slate-400 font-semibold">${subchild.progress}%</span>
+                                            </div>
+                                            <div class="action-buttons flex items-center space-x-1 border-l border-slate-200/60 pl-2">
+                                                <button onclick="moveSubchild('${parent.id}', '${child.id}', '${subchild.id}', 'up')" ${subIdx === 0 ? 'disabled class="opacity-30 text-slate-400"' : 'class="p-0.5 hover:bg-slate-200/60 rounded text-slate-500"'} title="Sposta Su / Up">
+                                                    <i data-lucide="arrow-up" class="w-3 h-3"></i>
+                                                </button>
+                                                <button onclick="moveSubchild('${parent.id}', '${child.id}', '${subchild.id}', 'down')" ${subIdx === child.children.length - 1 ? 'disabled class="opacity-30 text-slate-400"' : 'class="p-0.5 hover:bg-slate-200/60 rounded text-slate-500"'} title="Sposta Giù / Down">
+                                                    <i data-lucide="arrow-down" class="w-3 h-3"></i>
+                                                </button>
+                                                <button onclick="duplicateSubchild('${parent.id}', '${child.id}', '${subchild.id}')" class="p-0.5 hover:bg-indigo-100 text-indigo-600 rounded" title="Duplica Sotto-sotto-attività / Duplicate Subchild task">
+                                                    <i data-lucide="copy" class="w-3 h-3"></i>
+                                                </button>
+                                                <button onclick="openEditModal('${subchild.id}', 3)" class="p-0.5 hover:bg-slate-200/60 rounded text-slate-500" title="Modifica / Edit">
+                                                    <i data-lucide="edit-2" class="w-3 h-3"></i>
+                                                </button>
+                                                <button onclick="promptDelete('${subchild.id}', 3)" class="p-0.5 hover:bg-red-100 text-red-500 rounded" title="Elimina / Delete">
+                                                    <i data-lucide="trash" class="w-3 h-3"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                subRow.appendChild(subSidebar);
+
+                                const subTimeline = document.createElement('td');
+                                subTimeline.colSpan = weeksHeader.length;
+                                subTimeline.className = "p-0 relative h-9";
+                                subTimeline.style.backgroundColor = solidBg;
+
+                                subTimeline.innerHTML = createBackgroundGridHtml();
+
+                                const subBasePos = calculateBarPosition(subchild.startDate, subchild.endDate);
+
+                                let subDelayHtml = '';
+                                if (hasSubDelay) {
+                                    const subDelayWidth = subDelayDays * dayWidth;
+                                    const subDelayLeft = subBasePos.left + subBasePos.width;
+                                    const subActualEnd = addDays(new Date(subchild.endDate), subDelayDays);
+
+                                    subDelayHtml = `
+                                        <div class="absolute h-5 top-2 rounded-r-md bg-amber-500/90 border-t border-b border-r border-amber-600 flex items-center justify-center cursor-pointer shadow-sm group/delay z-10"
+                                             style="left: ${subDelayLeft}px; width: ${subDelayWidth}px;"
+                                             data-delay-info="Ritardo / Delay: +${subDelayDays} giorni. Fine / End: ${formatShortDate(subActualEnd)}">
+                                            <i data-lucide="alert-triangle" class="w-3 h-3 text-white"></i>
+                                        </div>
+                                    `;
+                                }
+
+                                const subTaskBar = document.createElement('div');
+                                subTaskBar.className = "absolute h-5 top-2 rounded-md shadow-sm border border-slate-800/10 flex items-center justify-between cursor-move group/bar z-10";
+                                
+                                if (hasSubDelay) {
+                                    subTaskBar.style.cssText = `left: ${subBasePos.left}px; width: ${subBasePos.width}px; background-color: ${hexColor}; opacity: 0.9; border-top-right-radius: 0; border-bottom-right-radius: 0;`;
+                                } else {
+                                    subTaskBar.style.cssText = `left: ${subBasePos.left}px; width: ${subBasePos.width}px; background-color: ${hexColor}; opacity: 0.9;`;
+                                }
+
+                                const subBarDateStr = subchild.startDate && subchild.endDate ? `${formatShortDate(new Date(subchild.startDate))} - ${formatShortDate(new Date(subchild.endDate))}` : '';
+                                subTaskBar.innerHTML = `
+                                    <div class="w-1.5 h-full cursor-ew-resize hover:bg-white/30 rounded-l-md transition-colors" data-handle="left" title="Inizio / Start"></div>
+                                    <div class="flex-1 h-full relative overflow-hidden flex items-center pointer-events-none">
+                                        <div class="h-full bg-black/20 transition-all" style="width: ${subchild.progress}%;"></div>
+                                        <span class="absolute inset-0 flex items-center justify-center px-1.5 text-[9px] font-medium text-white truncate drop-shadow-sm">
+                                            ${subchild.progress}% (${subBarDateStr})
+                                        </span>
+                                    </div>
+                                    <div class="w-1.5 h-full cursor-ew-resize hover:bg-white/30 rounded-r-md transition-colors" data-handle="right" title="Fine / End"></div>
+                                `;
+
+                                subTimeline.appendChild(subTaskBar);
+                                if (hasSubDelay) {
+                                    subTimeline.insertAdjacentHTML('beforeend', subDelayHtml);
+                                }
+
+                                attachDragEvents(subTaskBar, subchild, 3, parent.id, child.id);
+
+                                subRow.appendChild(subTimeline);
+                                tbody.appendChild(subRow);
+                            });
+                        }
+                    });
+                }
+            });
+
+            lucide.createIcons();
+            setupTooltips();
+        }
+
+        /**
+         * Setup left sidebar column resizing logic via mouse drag.
+         * Configura il ridimensionamento della colonna sinistra tramite trascinamento mouse.
+         */
+        function setupColumnResizer() {
+            const resizer = document.getElementById('columnResizer');
+            if (!resizer) return;
+
+            let isResizing = false;
+            let startX = 0;
+            let startWidth = 0;
+
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startX = e.clientX;
+                startWidth = leftColWidth;
+                resizer.classList.add('resizing');
+                document.body.style.cursor = 'col-resize';
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+
+            const onMouseMove = (e) => {
+                if (!isResizing) return;
+                const dx = e.clientX - startX;
+                const newWidth = Math.max(280, Math.min(1000, startWidth + dx));
+                leftColWidth = newWidth;
+
+                document.querySelectorAll('.sticky-col, .sticky-col-header').forEach(el => {
+                    el.style.width = `${newWidth}px`;
+                    el.style.minWidth = `${newWidth}px`;
+                    el.style.maxWidth = `${newWidth}px`;
+                });
+            };
+
+            const onMouseUp = () => {
+                if (!isResizing) return;
+                isResizing = false;
+                resizer.classList.remove('resizing');
+                document.body.style.cursor = 'default';
+
+                localStorage.setItem('gantt_left_col_width_v1', leftColWidth);
+
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            };
+        }
+
+        /**
+         * Setup timeline day-width scaling (zoom) via drag handles.
+         * Configura lo zoom orizzontale dei giorni nella timeline tramite trascinamento.
+         */
+        function setupTimelineResizer() {
+            const resizers = document.querySelectorAll('.timeline-resizer-handle');
+            resizers.forEach(resizer => {
+                let isResizing = false;
+                let startX = 0;
+                let startDayWidth = 0;
+
+                resizer.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    isResizing = true;
+                    startX = e.clientX;
+                    startDayWidth = dayWidth;
+                    resizer.classList.add('resizing');
+                    document.body.style.cursor = 'col-resize';
+
+                    const onMouseMove = (moveEvent) => {
+                        if (!isResizing) return;
+                        const dx = moveEvent.clientX - startX;
+                        const dayDelta = dx / WEEK_DAYS;
+                        const newDayWidth = Math.max(8, Math.min(60, startDayWidth + dayDelta));
+                        dayWidth = newDayWidth;
+                        renderGantt();
+                    };
+
+                    const onMouseUp = () => {
+                        if (!isResizing) return;
+                        isResizing = false;
+                        resizer.classList.remove('resizing');
+                        document.body.style.cursor = 'default';
+
+                        localStorage.setItem('gantt_day_width_v1', dayWidth);
+
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    };
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+            });
+        }
+
+        /**
+         * Tooltip hover management for delays.
+         * Gestisce i tooltip informativi in hover per i ritardi.
+         */
+        function setupTooltips() {
+            const tooltip = document.getElementById('customTooltip');
+            const delayElements = document.querySelectorAll('[data-delay-info]');
+
+            delayElements.forEach(el => {
+                el.addEventListener('mouseenter', (e) => {
+                    const info = el.getAttribute('data-delay-info');
+                    tooltip.innerHTML = `
+                        <div class="font-bold text-amber-400 mb-1 flex items-center"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 mr-1"></i> Segnalazione Ritardo / Delay Info</div>
+                        <div>${info.replace(/\. /g, '<br>')}</div>
+                    `;
+                    tooltip.classList.remove('hidden');
+                    lucide.createIcons();
+                });
+
+                el.addEventListener('mousemove', (e) => {
+                    tooltip.style.left = (e.clientX + 12) + 'px';
+                    tooltip.style.top = (e.clientY + 12) + 'px';
+                });
+
+                el.addEventListener('mouseleave', () => {
+                    tooltip.classList.add('hidden');
+                });
+            });
+        }
+
+        /**
+         * Calculate pixel left and width for timeline task bars.
+         * Calcola posizione pixel (left) e larghezza (width) per le barre sulla timeline.
+         */
+        function calculateBarPosition(startDateStr, endDateStr) {
+            const start = new Date(startDateStr);
+            const end = new Date(endDateStr);
+
+            const diffStartDays = Math.max(0, Math.round((start - projectStartDate) / (1000 * 60 * 60 * 24)));
+            const durationDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+
+            return {
+                left: diffStartDays * dayWidth,
+                width: durationDays * dayWidth
+            };
+        }
+
+        /**
+         * Attach drag and resize events to task bars.
+         * Associa gli eventi di trascinamento e ridimensionamento orizzontale alle barre delle attività.
+         */
+        function attachDragEvents(barElem, taskItem, level, parentId, childId) {
+            let isDragging = false;
+            let isResizingLeft = false;
+            let isResizingRight = false;
+            let startX = 0;
+            let initialLeft = 0;
+            let initialWidth = 0;
+
+            const onMouseDown = (e) => {
+                const handle = e.target.getAttribute('data-handle');
+                if (handle === 'left') {
+                    isResizingLeft = true;
+                } else if (handle === 'right') {
+                    isResizingRight = true;
+                } else {
+                    isDragging = true;
+                }
+
+                startX = e.clientX;
+                initialLeft = parseFloat(barElem.style.left) || 0;
+                initialWidth = parseFloat(barElem.style.width) || dayWidth;
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            };
+
+            const onMouseMove = (e) => {
+                if (!isDragging && !isResizingLeft && !isResizingRight) return;
+
+                const dx = e.clientX - startX;
+                const daysDelta = Math.round(dx / dayWidth);
+
+                if (isDragging) {
+                    const newLeft = Math.max(0, initialLeft + (daysDelta * dayWidth));
+                    barElem.style.left = `${newLeft}px`;
+                } else if (isResizingRight) {
+                    const newWidth = Math.max(dayWidth, initialWidth + (daysDelta * dayWidth));
+                    barElem.style.width = `${newWidth}px`;
+                } else if (isResizingLeft) {
+                    const maxLeftShift = initialWidth / dayWidth - 1;
+                    const clampedDays = Math.min(daysDelta, maxLeftShift);
+                    const newLeft = Math.max(0, initialLeft + (clampedDays * dayWidth));
+                    const newWidth = Math.max(dayWidth, initialWidth - (clampedDays * dayWidth));
+                    barElem.style.left = `${newLeft}px`;
+                    barElem.style.width = `${newWidth}px`;
+                }
+            };
+
+            const onMouseUp = (e) => {
+                if (!isDragging && !isResizingLeft && !isResizingRight) return;
+
+                const finalLeft = parseFloat(barElem.style.left);
+                const finalWidth = parseFloat(barElem.style.width);
+
+                const startDaysOffset = Math.round(finalLeft / dayWidth);
+                const durationDays = Math.round(finalWidth / dayWidth);
+
+                const newStart = addDays(projectStartDate, startDaysOffset);
+                const newEnd = addDays(newStart, durationDays - 1);
+
+                taskItem.startDate = formatDateToISO(newStart);
+                taskItem.endDate = formatDateToISO(newEnd);
+
+                isDragging = false;
+                isResizingLeft = false;
+                isResizingRight = false;
+
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+
+                saveGanttData();
+                renderGantt();
+            };
+
+            barElem.addEventListener('mousedown', onMouseDown);
+        }
+
+        // --- DUPLICATION / DUPLICAZIONE ATTIVITÀ E STRUTTURE (DEEP COPY) ---
+
+        function duplicateParent(parentId) {
+            const parentIdx = ganttData.findIndex(p => p.id === parentId);
+            if (parentIdx === -1) return;
+
+            const original = ganttData[parentIdx];
+            const clonedParent = JSON.parse(JSON.stringify(original));
+
+            clonedParent.id = 'parent-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+            clonedParent.title = `${original.title} (Copia)`;
+
+            if (clonedParent.children) {
+                clonedParent.children.forEach(c => {
+                    c.id = 'child-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+                    if (c.children) {
+                        c.children.forEach(s => {
+                            s.id = 'subchild-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+                        });
+                    }
+                });
+            }
+
+            ganttData.splice(parentIdx + 1, 0, clonedParent);
+            saveGanttData();
+            renderGantt();
+        }
+
+        function duplicateChild(parentId, childId) {
+            const parent = ganttData.find(p => p.id === parentId);
+            if (!parent || !parent.children) return;
+
+            const childIdx = parent.children.findIndex(c => c.id === childId);
+            if (childIdx === -1) return;
+
+            const original = parent.children[childIdx];
+            const clonedChild = JSON.parse(JSON.stringify(original));
+
+            clonedChild.id = 'child-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+            clonedChild.title = `${original.title} (Copia)`;
+
+            if (clonedChild.children) {
+                clonedChild.children.forEach(s => {
+                    s.id = 'subchild-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+                });
+            }
+
+            parent.children.splice(childIdx + 1, 0, clonedChild);
+            saveGanttData();
+            renderGantt();
+        }
+
+        function duplicateSubchild(parentId, childId, subchildId) {
+            const parent = ganttData.find(p => p.id === parentId);
+            if (!parent || !parent.children) return;
+
+            const child = parent.children.find(c => c.id === childId);
+            if (!child || !child.children) return;
+
+            const subIdx = child.children.findIndex(s => s.id === subchildId);
+            if (subIdx === -1) return;
+
+            const original = child.children[subIdx];
+            const clonedSub = JSON.parse(JSON.stringify(original));
+
+            clonedSub.id = 'subchild-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+            clonedSub.title = `${original.title} (Copia)`;
+
+            child.children.splice(subIdx + 1, 0, clonedSub);
+            saveGanttData();
+            renderGantt();
+        }
+
+        // --- HIERARCHY & CRUD FUNCTIONS / Funzioni di gestione gerarchia e CRUD ---
+
+        function toggleExpand(id, level) {
+            if (level === 1) {
+                const parent = ganttData.find(p => p.id === id);
+                if (parent) parent.expanded = !parent.expanded;
+            } else if (level === 2) {
+                ganttData.forEach(p => {
+                    const child = p.children ? p.children.find(c => c.id === id) : null;
+                    if (child) child.expanded = (child.expanded === false) ? true : false;
+                });
+            }
+            saveGanttData();
+            renderGantt();
+        }
+
+        function moveParent(parentId, direction) {
+            const idx = ganttData.findIndex(p => p.id === parentId);
+            if (idx === -1) return;
+
+            if (direction === 'up' && idx > 0) {
+                const temp = ganttData[idx];
+                ganttData[idx] = ganttData[idx - 1];
+                ganttData[idx - 1] = temp;
+            } else if (direction === 'down' && idx < ganttData.length - 1) {
+                const temp = ganttData[idx];
+                ganttData[idx] = ganttData[idx + 1];
+                ganttData[idx + 1] = temp;
+            }
+
+            saveGanttData();
+            renderGantt();
+        }
+
+        function moveChild(parentId, childId, direction) {
+            const parent = ganttData.find(p => p.id === parentId);
+            if (!parent || !parent.children) return;
+
+            const idx = parent.children.findIndex(c => c.id === childId);
+            if (idx === -1) return;
+
+            if (direction === 'up' && idx > 0) {
+                const temp = parent.children[idx];
+                parent.children[idx] = parent.children[idx - 1];
+                parent.children[idx - 1] = temp;
+            } else if (direction === 'down' && idx < parent.children.length - 1) {
+                const temp = parent.children[idx];
+                parent.children[idx] = parent.children[idx + 1];
+                parent.children[idx + 1] = temp;
+            }
+
+            saveGanttData();
+            renderGantt();
+        }
+
+        function moveSubchild(parentId, childId, subchildId, direction) {
+            const parent = ganttData.find(p => p.id === parentId);
+            if (!parent || !parent.children) return;
+
+            const child = parent.children.find(c => c.id === childId);
+            if (!child || !child.children) return;
+
+            const idx = child.children.findIndex(s => s.id === subchildId);
+            if (idx === -1) return;
+
+            if (direction === 'up' && idx > 0) {
+                const temp = child.children[idx];
+                child.children[idx] = child.children[idx - 1];
+                child.children[idx - 1] = temp;
+            } else if (direction === 'down' && idx < child.children.length - 1) {
+                const temp = child.children[idx];
+                child.children[idx] = child.children[idx + 1];
+                child.children[idx + 1] = temp;
+            }
+
+            saveGanttData();
+            renderGantt();
+        }
+
+        function addChildTask(parentId) {
+            const parent = ganttData.find(p => p.id === parentId);
+            if (!parent) return;
+
+            const today = new Date();
+            const nextWeek = addDays(today, 7);
+            const isoDate = formatDateToISO(today);
+            const isoNextWeek = formatDateToISO(nextWeek);
+
+            const newChild = {
+                id: 'child-' + Date.now(),
+                title: 'Nuova Sotto-attività / New Child',
+                expanded: true,
+                startDate: isoDate,
+                endDate: isoNextWeek,
+                delayDays: 0,
+                progress: 0,
+                delayReason: "",
+                children: []
+            };
+
+            if (!parent.children) parent.children = [];
+            parent.children.push(newChild);
+            parent.expanded = true;
+
+            saveGanttData();
+            renderGantt();
+            openEditModal(newChild.id, 2);
+        }
+
+        function addSubchildTask(parentId, childId) {
+            const parent = ganttData.find(p => p.id === parentId);
+            if (!parent || !parent.children) return;
+
+            const child = parent.children.find(c => c.id === childId);
+            if (!child) return;
+
+            const today = new Date();
+            const nextWeek = addDays(today, 5);
+            const isoDate = formatDateToISO(today);
+            const isoNextWeek = formatDateToISO(nextWeek);
+
+            const newSubchild = {
+                id: 'subchild-' + Date.now(),
+                title: 'Nuova Sotto-sotto-attività / New Subchild',
+                startDate: isoDate,
+                endDate: isoNextWeek,
+                delayDays: 0,
+                progress: 0,
+                delayReason: ""
+            };
+
+            if (!child.children) child.children = [];
+            child.children.push(newSubchild);
+            child.expanded = true;
+
+            saveGanttData();
+            renderGantt();
+            openEditModal(newSubchild.id, 3);
+        }
+
+        document.getElementById('addParentBtn').addEventListener('click', () => {
+            const newParent = {
+                id: 'parent-' + Date.now(),
+                title: 'Nuovo Gruppo / New Parent Group',
+                isParent: true,
+                expanded: true,
+                color: '#2563eb',
+                bgOpacity: 15,
+                children: []
+            };
+
+            ganttData.push(newParent);
+            saveGanttData();
+            renderGantt();
+            openEditModal(newParent.id, 1);
+        });
+
+        function openEditModal(id, level) {
+            const modal = document.getElementById('editModal');
+            document.getElementById('editTaskId').value = id;
+            document.getElementById('editTaskLevel').value = level;
+
+            if (level === 1) {
+                const parent = ganttData.find(p => p.id === id);
+                if (!parent) return;
+
+                document.getElementById('modalTitle').innerText = "Modifica Gruppo Genitore (Livello 1)";
+                document.getElementById('editTaskTitle').value = parent.title;
+                document.getElementById('dateInputsGroup').classList.add('hidden');
+                document.getElementById('delayDaysGroup').classList.add('hidden');
+                document.getElementById('progressInputGroup').classList.add('hidden');
+                document.getElementById('colorPickerGroup').classList.remove('hidden');
+
+                document.getElementById('editColorHex').value = parent.color || "#4f46e5";
+                document.getElementById('editOpacity').value = parent.bgOpacity || 15;
+                document.getElementById('opacityValue').innerText = `${parent.bgOpacity || 15}%`;
+
+            } else {
+                let targetTask = null;
+
+                ganttData.forEach(p => {
+                    if (level === 2) {
+                        const found = p.children ? p.children.find(c => c.id === id) : null;
+                        if (found) targetTask = found;
+                    } else if (level === 3) {
+                        if (p.children) {
+                            p.children.forEach(c => {
+                                const foundSub = c.children ? c.children.find(s => s.id === id) : null;
+                                if (foundSub) targetTask = foundSub;
+                            });
+                        }
+                    }
+                });
+
+                if (!targetTask) return;
+
+                document.getElementById('modalTitle').innerText = level === 2 ? "Modifica Sotto-attività (Livello 2)" : "Modifica Sotto-sotto-attività (Livello 3)";
+                document.getElementById('editTaskTitle').value = targetTask.title;
+                document.getElementById('dateInputsGroup').classList.remove('hidden');
+                document.getElementById('delayDaysGroup').classList.remove('hidden');
+                document.getElementById('progressInputGroup').classList.remove('hidden');
+                document.getElementById('colorPickerGroup').classList.add('hidden');
+
+                document.getElementById('editStartDate').value = targetTask.startDate || "";
+                document.getElementById('editEndDate').value = targetTask.endDate || "";
+                document.getElementById('editDelayDays').value = targetTask.delayDays || 0;
+                document.getElementById('editDelayReason').value = targetTask.delayReason || "";
+                document.getElementById('editProgress').value = targetTask.progress || 0;
+                document.getElementById('progressValue').innerText = `${targetTask.progress || 0}%`;
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+        }
+
+        function setPresetColor(colorHex) {
+            document.getElementById('editColorHex').value = colorHex;
+        }
+
+        document.getElementById('editForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('editTaskId').value;
+            const level = parseInt(document.getElementById('editTaskLevel').value, 10);
+            const title = document.getElementById('editTaskTitle').value;
+
+            if (level === 1) {
+                const parent = ganttData.find(p => p.id === id);
+                if (parent) {
+                    parent.title = title;
+                    parent.color = document.getElementById('editColorHex').value;
+                    parent.bgOpacity = parseInt(document.getElementById('editOpacity').value, 10);
+                }
+            } else {
+                ganttData.forEach(p => {
+                    if (level === 2 && p.children) {
+                        const child = p.children.find(c => c.id === id);
+                        if (child) {
+                            child.title = title;
+                            child.startDate = document.getElementById('editStartDate').value;
+                            child.endDate = document.getElementById('editEndDate').value;
+                            child.delayDays = parseInt(document.getElementById('editDelayDays').value, 10) || 0;
+                            child.delayReason = document.getElementById('editDelayReason').value;
+                            child.progress = parseInt(document.getElementById('editProgress').value, 10);
+                        }
+                    } else if (level === 3 && p.children) {
+                        p.children.forEach(c => {
+                            if (c.children) {
+                                const subchild = c.children.find(s => s.id === id);
+                                if (subchild) {
+                                    subchild.title = title;
+                                    subchild.startDate = document.getElementById('editStartDate').value;
+                                    subchild.endDate = document.getElementById('editEndDate').value;
+                                    subchild.delayDays = parseInt(document.getElementById('editDelayDays').value, 10) || 0;
+                                    subchild.delayReason = document.getElementById('editDelayReason').value;
+                                    subchild.progress = parseInt(document.getElementById('editProgress').value, 10);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+
+            saveGanttData();
+            renderGantt();
+            closeEditModal();
+        });
+
+        document.getElementById('editOpacity').addEventListener('input', (e) => {
+            document.getElementById('opacityValue').innerText = `${e.target.value}%`;
+        });
+
+        document.getElementById('editProgress').addEventListener('input', (e) => {
+            document.getElementById('progressValue').innerText = `${e.target.value}%`;
+        });
+
+        function promptDelete(id, level) {
+            pendingDeleteId = id;
+            pendingDeleteLevel = level;
+
+            const messageElem = document.getElementById('deleteModalMessage');
+            if (level === 1) {
+                messageElem.innerText = "Sei sicuro di voler eliminare questo gruppo e tutte le sotto-attività collegate? / Delete parent and all its children?";
+            } else if (level === 2) {
+                messageElem.innerText = "Sei sicuro di voler eliminare questa sotto-attività e le sotto-sotto-attività? / Delete child and subchildren?";
+            } else {
+                messageElem.innerText = "Sei sicuro di voler eliminare questa sotto-sotto-attività? / Delete subchild?";
+            }
+
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.add('hidden');
+            pendingDeleteId = null;
+        }
+
+        document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
+            if (!pendingDeleteId) return;
+
+            if (pendingDeleteLevel === 1) {
+                ganttData = ganttData.filter(p => p.id !== pendingDeleteId);
+            } else if (pendingDeleteLevel === 2) {
+                ganttData.forEach(p => {
+                    if (p.children) p.children = p.children.filter(c => c.id !== pendingDeleteId);
+                });
+            } else if (pendingDeleteLevel === 3) {
+                ganttData.forEach(p => {
+                    if (p.children) {
+                        p.children.forEach(c => {
+                            if (c.children) c.children = c.children.filter(s => s.id !== pendingDeleteId);
+                        });
+                    }
+                });
+            }
+
+            saveGanttData();
+            renderGantt();
+            closeDeleteModal();
+        });
+
+        /**
+         * Setup global event listeners (Search, Export, Import, Reset, Clear).
+         * Configura i listener di eventi globali (Ricerca, Esportazione, Importazione, Ripristino).
+         */
+        function setupEventListeners() {
+            document.getElementById('editProjectNameBtn').addEventListener('click', editProjectName);
+
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                searchQuery = e.target.value;
+                renderGantt();
+            });
+
+            /**
+             * Standalone HTML Exporter with GPLv3 header injection.
+             * Esportatore HTML Standalone con iniezione dell'intestazione GPLv3 e stato attuale.
+             */
+            document.getElementById('exportHtmlBtn').addEventListener('click', () => {
+                const sanitizedProjName = currentProjectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const defaultFileName = `${sanitizedProjName}_${new Date().toISOString().slice(0, 10)}`;
+                let customName = prompt("Inserisci il nome per il file HTML / Enter HTML filename:", defaultFileName);
+                
+                if (customName === null) return;
+                customName = customName.trim() || defaultFileName;
+                if (!customName.endsWith('.html')) {
+                    customName += '.html';
+                }
+
+                const doctypeAndGplHeader = `<!DOCTYPE html>
+<!--
+  ========================================================================
+  Interactive Gantt Project Management Tool (v1.0.0-beta2)
+  Repository GitHub: https://github.com/ERik16180339887/Gantt
+  Copyright (C) 2026
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
+  ------------------------------------------------------------------------
+  Questo programma è software libero: puoi ridistribuirlo e/o modificarlo
+  secondo i termini della Licenza Pubblica Generale GNU (GNU GPL) come 
+  pubblicata dalla Free Software Foundation, versione 3 della licenza o 
+  (a tua scelta) qualsiasi versione successiva.
+
+  Questo programma è distribuito nella speranza che sia utile,
+  ma SENZA ALCUNA GARANZIA; senza neppure la garanzia implicita di
+  COMMERCIALIZZABILITÀ O IDONEITÀ PER UNO SCOPO PARTICOLARE. 
+
+  Vedi la Licenza Pubblica Generale GNU per maggiori dettagli:
+  <https://www.gnu.org/licenses/gpl-3.0.html>
+  ========================================================================
+-->\n`;
+
+                const currentHtml = document.documentElement.outerHTML;
+                const jsonStr = JSON.stringify(ganttData, null, 4);
+                const newProjId = "proj_" + Date.now();
+
+                let updatedHtml = doctypeAndGplHeader + currentHtml;
+
+                updatedHtml = updatedHtml.replace(
+                    /const DEFAULT_DATA = \[[\s\S]*?\];/,
+                    `const DEFAULT_DATA = ${jsonStr};`
+                );
+
+                updatedHtml = updatedHtml.replace(
+                    /const DEFAULT_PROJECT_NAME = ".*?";/,
+                    `const DEFAULT_PROJECT_NAME = "${escapeHtml(currentProjectName)}";`
+                );
+
+                updatedHtml = updatedHtml.replace(
+                    /const DEFAULT_PROJECT_ID = ".*?";/,
+                    `const DEFAULT_PROJECT_ID = "${newProjId}";`
+				);
+				
+				// <-- Regola per aggiornare il titolo nel file esportato -->
+                updatedHtml = updatedHtml.replace(
+                    /<title>.*?<\/title>/,
+                    `<title>${escapeHtml(currentProjectName)}</title>`	
+                );
+
+                const dataStr = "data:text/html;charset=utf-8," + encodeURIComponent(updatedHtml);
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", customName);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+            });
+
+            // JSON backup export (Fixed: includes projectName) / Esportazione backup JSON con nome progetto incluso
+            document.getElementById('exportBtn').addEventListener('click', () => {
+                const sanitizedProjName = currentProjectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const defaultFileName = `${sanitizedProjName}_${new Date().toISOString().slice(0, 10)}`;
+                let customName = prompt("Inserisci il nome per il file JSON / Enter JSON filename:", defaultFileName);
+                
+                if (customName === null) return;
+                customName = customName.trim() || defaultFileName;
+                if (!customName.endsWith('.json')) {
+                    customName += '.json';
+                }
+
+                const exportObj = {
+                    projectName: currentProjectName,
+                    data: ganttData
+                };
+
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", customName);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+            });
+
+            // JSON file import (Fixed: handles both new structured objects and legacy arrays) / Importazione JSON con supporto retrocompatibilità
+            document.getElementById('importInput').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const parsed = JSON.parse(event.target.result);
+                        if (Array.isArray(parsed)) {
+                            ganttData = parsed;
+                        } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.data)) {
+                            ganttData = parsed.data;
+                            if (parsed.projectName) {
+                                currentProjectName = parsed.projectName;
+                                updateProjectNameUI();
+                            }
+                        }
+                        saveGanttData();
+                        renderGantt();
+                    } catch (err) {
+                        console.error("Invalid JSON file / File JSON non valido");
+                    }
+                };
+                reader.readAsText(file);
+            });
+
+            // Clear button / Pulsante pulizia completa
+            document.getElementById('clearBtn').addEventListener('click', () => {
+                ganttData = [];
+                currentProjectName = "Nuovo Progetto";
+                updateProjectNameUI();
+                saveGanttData();
+                renderGantt();
+            });
+
+            // Reset button / Pulsante ripristino esempio o dati iniziali
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                if (Array.isArray(DEFAULT_DATA) && DEFAULT_DATA.length > 0) {
+                    ganttData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                    currentProjectName = DEFAULT_PROJECT_NAME;
+                } else {
+                    ganttData = JSON.parse(JSON.stringify(SAMPLE_DATA));
+                    currentProjectName = "Progetto Esempio UX/UI";
+                }
+                updateProjectNameUI();
+                saveGanttData();
+                renderGantt();
+            });
+        }
+
+        // --- UTILITY FUNCTIONS / FUNZIONI DI UTILITÀ ---
+
+        function formatDateToISO(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        function formatShortDate(date) {
+            const d = date.getDate().toString().padStart(2, '0');
+            const m = (date.getMonth() + 1).toString().padStart(2, '0');
+            return `${d}/${m}`;
+        }
+
+        function addDays(date, days) {
+            const result = new Date(date);
+            result.setDate(result.getDate() + days);
+            return result;
+        }
+
+        function getMonday(d) {
+            const date = new Date(d);
+            const day = date.getDay();
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+            return new Date(date.setDate(diff));
+        }
+
+        function getWeekNumber(d) {
+            const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            const dayNum = date.getUTCDay() || 7;
+            date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+            return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+        }
+
+        /**
+         * Blend a hex color with white based on given opacity for row backgrounds.
+         * Miscela un colore esadecimale con il bianco in base all'opacità per lo sfondo delle righe.
+         */
+        function getSolidTint(hex, opacity) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) {
+                hex = hex.split('').map(c => c + c).join('');
+            }
+            const r = parseInt(hex.substring(0, 2), 16) || 0;
+            const g = parseInt(hex.substring(2, 4), 16) || 0;
+            const b = parseInt(hex.substring(4, 6), 16) || 0;
+            
+            const nr = Math.round(r * opacity + 255 * (1 - opacity));
+            const ng = Math.round(g * opacity + 255 * (1 - opacity));
+            const nb = Math.round(b * opacity + 255 * (1 - opacity));
+            
+            return `#${((1 << 24) + (nr << 16) + (ng << 8) + nb).toString(16).slice(1)}`;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&amp;|&lt;|&gt;|&quot;|&#039;/g, function(m) {
+                return {
+                    '&amp;': '&',
+                    '&lt;': '<',
+                    '&gt;': '>',
+                    '&quot;': '"',
+                    '&#039;': "'"
+                }[m];
+            }).replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+    </script>
+</body>
+</html>
