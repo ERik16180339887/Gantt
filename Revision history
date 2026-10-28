@@ -1,4 +1,10 @@
-Gantt-alpha.html: prima versione, incompleta
-Gantt-alpha 0.1.1.html: in realtà sarebbe la v0.1.0-alpha2, sistemerò alla prossima emissione. Sistemati un po' di errori della prima versione
-Gantt v0.1.0-alpha2: aggiunti dei controlli e sistemata la numerazione delle revisioni
-Gantt v1.0.0-beta1: aggiunti ulteriori controlli sull'ordine delle attività e sotto-attività, sullo zoom delle settimane, sul salvataggio ed importazione delle programmazioni
+Gantt-alpha.html: prima versione, preliminare ed incompleta.
+Gantt-alpha 0.1.1.html: in realtà sarebbe la v0.1.0-alpha2, sistemerò alla prossima emissione. Sistemati un po' di errori della prima versione.
+Gantt v0.1.0-alpha2: aggiunti dei controlli e sistemata la numerazione delle revisioni, implementata la possibilità di esportare un file html con i dati di programmazione integrati 
+                      nel codice per portabilità e sicurezza sulla perdita dati.
+Gantt v1.0.0-beta1: aggiunti ulteriori controlli sull'ordine delle attività e sotto-attività, sullo zoom delle settimane, sul salvataggio ed importazione delle programmazioni.
+Gantt v1.0.0-beta2: aggiunto secondo livello di sotto-attività, aggiunta evidenza giorno attuale se presente nell'intervallo di programmazione, aggiunta la possibilità di 
+                    duplicare intere attività o sotto-attività, migliorata la leggibilità e incrementate le informazioni della lista attività, aggiunto il pulsante per 
+                    nascondere i controlli delle attività.
+Gantt v1.0.0-beta3: aggiunta possibilità di spostare interi gruppi di attività lungo la linea temporale, migliorata la disposizione dei pulsanti,  il nome progretto appare 
+                    anche sull'etichetta della pagina html, aggiornati i pop-up dei pulsanti al passaggio del mouse e gli avvisi per le cancellazioni dati.
