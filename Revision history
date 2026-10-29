@@ -8,3 +8,4 @@ Gantt v1.0.0-beta2: aggiunto secondo livello di sotto-attività, aggiunta eviden
                     nascondere i controlli delle attività.
 Gantt v1.0.0-beta3: aggiunta possibilità di spostare interi gruppi di attività lungo la linea temporale, migliorata la disposizione dei pulsanti,  il nome progretto appare 
                     anche sull'etichetta della pagina html, aggiornati i pop-up dei pulsanti al passaggio del mouse e gli avvisi per le cancellazioni dati, corretti bug minori
+Gantt v1.0.0-beta4: aggiunta una nuova funzione per cambio visualizzazione settimanale/mensile
