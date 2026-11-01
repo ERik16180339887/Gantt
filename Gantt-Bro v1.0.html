@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<!--
+  ========================================================================
+  Gantt JSON to Excel (.xlsx) Converter Utility (v1.0.0)
+  Repository GitHub: https://github.com/ERik16180339887/Gantt
+  Copyright (C) 2026 - Licenza GNU GPLv3
+  ========================================================================
+-->
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gantt JSON ➔ Excel Converter</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS Style per la generazione del file .xlsx formattato -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-xl w-full p-8 transition-all">
+
+        <!-- HEADER -->
+        <div class="flex items-center space-x-3 mb-6 pb-6 border-b border-slate-100">
+
+            <div class="bg-emerald-600 text-white p-2.5 rounded-2xl shadow-md flex items-center justify-center">
+                <svg class="w-14 h-14" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Sfondo Smeraldo (area verde che fa da cornice/sbordo) -->
+                    <rect width="64" height="64" rx="16" fill="#059669"/>
+
+                    <defs>
+                        <clipPath id="pageClip">
+                            <rect x="6" y="6" width="52" height="52" rx="8"/>
+                        </clipPath>
+                    </defs>
+
+                    <!-- Foglio Excel grande che riempie quasi tutto lasciando i 10px scarsi di bordo verde -->
+                    <rect x="6" y="6" width="52" height="52" rx="8" fill="#FFFFFF" stroke="#A7F3D0" stroke-width="2"/>
+
+                    <g clip-path="url(#pageClip)">
+                        <path d="M44 6L58 20H48C45.7909 20 44 18.2091 44 16V6Z" fill="#D1FAE5" stroke="#A7F3D0" stroke-width="1.5" stroke-linejoin="round"/>
+                    </g>
+
+                    <!-- Mini Logo G-Gantt grande in alto a sinistra -->
+                    <g transform="translate(10, 10)">
+                        <rect width="22" height="22" rx="5" fill="#4F46E5"/>
+                        <g transform="translate(2, 2) scale(0.3)">
+                            <rect x="14" y="14" width="36" height="8" rx="4" fill="#EEF2FF"/>
+                            <rect x="28" y="28" width="22" height="8" rx="4" fill="#C7D2FE"/>
+                            <rect x="14" y="42" width="36" height="8" rx="4" fill="#818CF8"/>
+                            <rect x="14" y="14" width="8" height="36" rx="4" fill="#FFFFFF"/>
+                            <rect x="42" y="28" width="8" height="22" rx="4" fill="#818CF8"/>
+                            <circle cx="34" cy="32" r="2.5" fill="#4F46E5"/>
+                        </g>
+                    </g>
+
+                    <!-- Righe di calcolo/Gantt grandi e spaziate -->
+                    <rect x="10" y="38" width="24" height="6" rx="3" fill="#059669"/>
+                    <rect x="38" y="38" width="16" height="6" rx="3" fill="#E2E8F0"/>
+
+                    <rect x="10" y="48" width="14" height="6" rx="3" fill="#E2E8F0"/>
+                    <rect x="28" y="48" width="26" height="6" rx="3" fill="#10B981"/>
+
+                    <!-- Badge freccia export in basso a destra -->
+                    <circle cx="46" cy="46" r="11" fill="#047857" stroke="#FFFFFF" stroke-width="2.5"/>
+                    <path d="M46 39V53M46 53L41 48M46 53L51 48" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+
+            <div>
+                <h1 class="text-xl font-bold text-slate-900">Gantt-Bro v1.0</h1>
+                <p class="text-xs text-slate-500">Utility locale per conversione file JSON di G-Gantt in Excel</p>
+            </div>
+        </div>
+
+        <!-- DRAG & DROP ZONE -->
+        <div id="dropZone" class="border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50 hover:bg-emerald-50/50 rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center space-y-3">
+            <div class="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-emerald-600 border border-slate-200">
+                <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <p class="text-sm font-semibold text-slate-700">Trascina qui il tuo file <span class="text-emerald-600 font-bold">.json</span></p>
+                <p class="text-xs text-slate-400 mt-1">oppure clicca per selezionarlo dal PC</p>
+            </div>
+            <input type="file" id="jsonFileInput" accept=".json" class="hidden">
+        </div>
+
+        <!-- FILE LOADED INFO -->
+        <div id="fileInfoCard" class="hidden mt-6 bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+            <div class="flex items-center space-x-3 overflow-hidden pr-2">
+                <div class="bg-indigo-100 text-indigo-700 p-2 rounded-lg shrink-0">
+                    <i data-lucide="file-json" class="w-5 h-5"></i>
+                </div>
+                <div class="truncate">
+                    <p id="projectNameLabel" class="text-sm font-bold text-slate-800 truncate">Nome Progetto</p>
+                    <p id="fileDetailsLabel" class="text-xs text-slate-500">Pronto per la conversione</p>
+                </div>
+            </div>
+            <button id="convertBtn" onclick="generateExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg text-sm flex items-center space-x-2 shadow-md transition-all shrink-0">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span>Scarica .xlsx</span>
+            </button>
+        </div>
+
+        <!-- STATUS MESSAGE -->
+        <div id="statusMessage" class="hidden mt-4 text-center text-xs font-medium py-2 px-3 rounded-lg"></div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="mt-8 text-xs text-slate-400 text-center">
+        G-Gantt Project Management Tool Utility • GNU GPLv3
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        let loadedGanttData = null;
+        let loadedProjectName = "Progetto_Gantt";
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('jsonFileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-emerald-500', 'bg-emerald-50/50');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/50');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/50');
+            if (e.dataTransfer.files.length > 0) {
+                processJsonFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                processJsonFile(e.target.files[0]);
+            }
+        });
+
+        function processJsonFile(file) {
+            if (!file.name.endsWith('.json')) {
+                showStatus("Seleziona un file in formato .json valido esportato dal Gantt.", "error");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const parsed = JSON.parse(event.target.result);
+                    if (Array.isArray(parsed)) {
+                        loadedGanttData = parsed;
+                        loadedProjectName = file.name.replace('.json', '');
+                    } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.data)) {
+                        loadedGanttData = parsed.data;
+                        loadedProjectName = parsed.projectName || file.name.replace('.json', '');
+                    } else {
+                        showStatus("Formato JSON non compatibile.", "error");
+                        return;
+                    }
+
+                    document.getElementById('projectNameLabel').innerText = loadedProjectName;
+                    document.getElementById('fileDetailsLabel').innerText = `Progetto caricato correttamente`;
+                    document.getElementById('fileInfoCard').classList.remove('hidden');
+                    showStatus("File JSON pronto per la conversione!", "success");
+                    lucide.createIcons();
+                } catch (err) {
+                    showStatus("Errore durante la lettura del file JSON.", "error");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function showStatus(text, type) {
+            const msg = document.getElementById('statusMessage');
+            msg.innerText = text;
+            msg.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'bg-emerald-50', 'text-emerald-700');
+            if (type === "error") {
+                msg.classList.add('bg-red-50', 'text-red-600');
+            } else {
+                msg.classList.add('bg-emerald-50', 'text-emerald-700');
+            }
+        }
+
+        function parseISODate(dateStr) {
+            if (!dateStr) return null;
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return null;
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        }
+
+        function formatDateISO(d) {
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function addDays(date, days) {
+            const result = new Date(date);
+            result.setDate(result.getDate() + days);
+            return result;
+        }
+
+        function formatShortDate(date) {
+            const d = date.getDate().toString().padStart(2, '0');
+            const m = (date.getMonth() + 1).toString().padStart(2, '0');
+            return `${d}/${m}`;
+        }
+
+        function adjustColorBrightness(hex, percent) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+            let num = parseInt(hex, 16);
+            let r = (num >> 16) + percent;
+            let g = ((num >> 8) & 0x00FF) + percent;
+            let b = (num & 0x0000FF) + percent;
+            r = Math.min(255, Math.max(0, r));
+            g = Math.min(255, Math.max(0, g));
+            b = Math.min(255, Math.max(0, b));
+            return ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+        }
+
+        function getProgressBgColor(pct) {
+            if (pct === 0) return "F1F5F9";
+            if (pct <= 25) return "E0E7FF";
+            if (pct <= 50) return "C7D2FE";
+            if (pct <= 75) return "A5B4FC";
+            if (pct < 100) return "818CF8";
+            return "4F46E5";
+        }
+
+        function generateExcel() {
+            if (!loadedGanttData || typeof XLSX === 'undefined') return;
+
+            // Step 1: Linearizzazione gerarchica
+            let flatRows = [];
+
+            function collectRows(items, depth = 0, parentColor = "4F46E5") {
+                items.forEach(item => {
+                    const rowObj = {
+                        title: item.title,
+                        depth: depth,
+                        color: item.color ? item.color.replace('#', '') : parentColor,
+                        startDate: item.startDate || "",
+                        endDate: item.endDate || "",
+                        delayDays: parseInt(item.delayDays) || 0,
+                        progress: parseInt(item.progress) || 0,
+                        rawChildren: item.children || [],
+                        childrenIndices: []
+                    };
+                    const currentIndex = flatRows.length;
+                    flatRows.push(rowObj);
+
+                    if (item.children && item.children.length > 0) {
+                        item.children.forEach(child => {
+                            const childIdx = collectRows([child], depth + 1, rowObj.color);
+                            rowObj.childrenIndices.push(childIdx[0]);
+                        });
+                    }
+                });
+                return flatRows.map((_, idx) => idx).slice(-items.length);
+            }
+
+            collectRows(loadedGanttData);
+
+            // Step 2: Ricalcolo Date ed Avanzamento BOTTOM-UP
+            for (let i = flatRows.length - 1; i >= 0; i--) {
+                const row = flatRows[i];
+                if (row.childrenIndices.length > 0) {
+                    let minStart = null;
+                    let maxPlannedEnd = null;
+                    let maxEffectiveEnd = null;
+                    let totalWeightedProgress = 0;
+                    let totalDuration = 0;
+
+                    row.childrenIndices.forEach(cIdx => {
+                        const child = flatRows[cIdx];
+                        if (child.startDate && child.endDate) {
+                            const cStart = parseISODate(child.startDate);
+                            const cPlannedEnd = parseISODate(child.endDate);
+                            const cEffectiveEnd = addDays(cPlannedEnd, child.delayDays);
+
+                            if (!minStart || cStart < minStart) minStart = cStart;
+                            if (!maxPlannedEnd || cPlannedEnd > maxPlannedEnd) maxPlannedEnd = cPlannedEnd;
+                            if (!maxEffectiveEnd || cEffectiveEnd > maxEffectiveEnd) maxEffectiveEnd = cEffectiveEnd;
+
+                            const duration = Math.max(1, Math.round((cPlannedEnd - cStart) / (1000 * 60 * 60 * 24)) + 1) + child.delayDays;
+                            totalWeightedProgress += duration * (child.progress / 100);
+                            totalDuration += duration;
+                        }
+                    });
+
+                    if (minStart && maxPlannedEnd) {
+                        row.startDate = formatDateISO(minStart);
+                        row.endDate = formatDateISO(maxPlannedEnd);
+                        const delayDiff = Math.max(0, Math.round((maxEffectiveEnd - maxPlannedEnd) / (1000 * 60 * 60 * 24)));
+                        row.delayDays = delayDiff;
+                    }
+                    row.progress = totalDuration > 0 ? Math.round((totalWeightedProgress / totalDuration) * 100) : 0;
+                }
+            }
+
+            // Step 3: Asse temporale
+            let allDatesMap = {};
+            flatRows.forEach(row => {
+                if (row.startDate && row.endDate) {
+                    const s = parseISODate(row.startDate);
+                    const e = addDays(parseISODate(row.endDate), row.delayDays);
+                    let curr = new Date(s);
+                    while (curr <= e) {
+                        const key = formatDateISO(curr);
+                        allDatesMap[key] = new Date(curr);
+                        curr = addDays(curr, 1);
+                    }
+                }
+            });
+
+            const sortedDateKeys = Object.keys(allDatesMap).sort();
+            if (sortedDateKeys.length === 0) {
+                showStatus("Nessuna data valida trovata nelle attività.", "error");
+                return;
+            }
+
+            const dateIndexMap = {};
+            const timelineDates = [];
+            const timelineCols = sortedDateKeys.map((key, idx) => {
+                dateIndexMap[key] = idx;
+                timelineDates.push(allDatesMap[key]);
+                return formatShortDate(allDatesMap[key]);
+            });
+
+            // Intestazioni fisse con A1 e B1 vuote e C1 impostata dinamicamente con il nome del progetto
+            const fixedHeaders = ["", "", loadedProjectName, "Inizio", "Fine", "Avanzamento", "Ritardo (g)"];
+            const fullHeaders = [...fixedHeaders, ...timelineCols];
+            const wsData = [fullHeaders];
+            const matrixStyles = {};
+
+            flatRows.forEach((row, rIdx) => {
+                let colL1 = "", colL2 = "", colL3 = "";
+                if (row.depth === 0) {
+                    colL1 = row.title;
+                } else if (row.depth === 1) {
+                    colL2 = row.title;
+                } else {
+                    colL3 = row.title;
+                }
+
+                const excelRow = [
+                    colL1,
+                    colL2,
+                    colL3,
+                    row.startDate,
+                    row.endDate,
+                    row.progress / 100,
+                    row.delayDays
+                ];
+
+                timelineCols.forEach(() => excelRow.push(""));
+                wsData.push(excelRow);
+
+                const excelRowNum = rIdx + 2;
+
+                if (row.startDate && row.endDate) {
+                    const startObj = parseISODate(row.startDate);
+                    const endObj = parseISODate(row.endDate);
+                    const baseDays = Math.max(1, Math.round((endObj - startObj) / (1000 * 60 * 60 * 24)) + 1);
+                    const completedDays = Math.round(baseDays * (row.progress / 100));
+
+                    const darkColor = adjustColorBrightness(row.color, -35);
+                    const lightColor = row.color;
+                    const delayColor = "EAB308";
+
+                    for (let d = 0; d < baseDays + row.delayDays; d++) {
+                        const currentDayObj = addDays(startObj, d);
+                        const dayKey = formatDateISO(currentDayObj);
+                        const colIdx = dateIndexMap[dayKey];
+
+                        if (colIdx !== undefined) {
+                            let cellStyleObj = null;
+
+                            if (d < baseDays) {
+                                if (d < completedDays) {
+                                    cellStyleObj = { fill: { fgColor: { rgb: darkColor } } };
+                                } else {
+                                    cellStyleObj = { fill: { fgColor: { rgb: lightColor } } };
+                                }
+                            } else {
+                                cellStyleObj = {
+                                    fill: {
+                                        patternType: "darkTrellis",
+                                        fgColor: { rgb: delayColor },
+                                        bgColor: { rgb: "FEF9C3" }
+                                    }
+                                };
+                            }
+
+                            const colLetter = XLSX.utils.encode_col(fixedHeaders.length + colIdx);
+                            matrixStyles[`${colLetter}${excelRowNum}`] = cellStyleObj;
+                        }
+                    }
+                }
+            });
+
+            // Step 4: Generazione Foglio Excel
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            const cols = [
+                { wch: 5 }, { wch: 5 }, { wch: 35 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }
+            ];
+            timelineCols.forEach(() => cols.push({ wch: 2.75 }));
+            ws['!cols'] = cols;
+            ws['!rows'] = [{ hpx: 75 }];
+
+            // Formattazione Intestazioni (C1 ha il nome del progetto centrato e sz:12)
+            for (let c = 0; c < fullHeaders.length; c++) {
+                const colLetter = XLSX.utils.encode_col(c);
+                const cellRef = `${colLetter}1`;
+                if (!ws[cellRef]) ws[cellRef] = { t: 's', v: fullHeaders[c] };
+                if (!ws[cellRef].s) ws[cellRef].s = {};
+
+                if (c >= fixedHeaders.length) {
+                    ws[cellRef].s = {
+                        font: { bold: true, sz: 9 },
+                        alignment: { textRotation: 90, vertical: "center", horizontal: "center" },
+                        fill: { fgColor: { rgb: "F1F5F9" } }
+                    };
+                } else {
+                    ws[cellRef].s = {
+                        font: { bold: true, sz: 12 },
+                        alignment: { vertical: "center", horizontal: "center" },
+                        fill: { fgColor: { rgb: "E2E8F0" } }
+                    };
+                }
+            }
+
+            // Formattazione Celle Dati (Inizio, Fine, Avanzamento, Ritardo)
+            const maxRow = flatRows.length + 1;
+            for (let rowNum = 2; rowNum <= maxRow; rowNum++) {
+                const startCell = `D${rowNum}`;
+                if (ws[startCell]) {
+                    if (!ws[startCell].s) ws[startCell].s = {};
+                    ws[startCell].s.alignment = { horizontal: "center", vertical: "center" };
+                }
+
+                const endCell = `E${rowNum}`;
+                if (ws[endCell]) {
+                    if (!ws[endCell].s) ws[endCell].s = {};
+                    ws[endCell].s.alignment = { horizontal: "center", vertical: "center" };
+                }
+
+                const progCell = `F${rowNum}`;
+                if (ws[progCell]) {
+                    const rawVal = ws[progCell].v;
+                    const pctInt = Math.round(rawVal * 100);
+
+                    ws[progCell].z = "0%";
+                    if (!ws[progCell].s) ws[progCell].s = {};
+                    ws[progCell].s = {
+                        alignment: { horizontal: "center", vertical: "center" },
+                        font: { bold: true, sz: 9, color: { rgb: pctInt > 60 ? "FFFFFF" : "000000" } },
+                        fill: { fgColor: { rgb: getProgressBgColor(pctInt) } }
+                    };
+                }
+
+                const delayCell = `G${rowNum}`;
+                if (ws[delayCell]) {
+                    if (!ws[delayCell].s) ws[delayCell].s = {};
+                    ws[delayCell].s.alignment = { horizontal: "center", vertical: "center" };
+                }
+            }
+
+            // Applicazione dello sfondo e campitura alla Matrice Timeline
+            for (let cellRef in matrixStyles) {
+                if (!ws[cellRef]) ws[cellRef] = { t: 's', v: "" };
+                if (!ws[cellRef].s) ws[cellRef].s = {};
+                ws[cellRef].s = matrixStyles[cellRef];
+            }
+
+            // Bordo sinistro marcato per i Lunedì
+            timelineDates.forEach((cellDate, colIdx) => {
+                if (cellDate.getDay() === 1) {
+                    const colLetter = XLSX.utils.encode_col(fixedHeaders.length + colIdx);
+                    for (let r = 1; r <= wsData.length; r++) {
+                        const cellRef = `${colLetter}${r}`;
+                        if (!ws[cellRef]) ws[cellRef] = { t: 's', v: "" };
+                        if (!ws[cellRef].s) ws[cellRef].s = {};
+
+                        ws[cellRef].s.border = {
+                            ...(ws[cellRef].s.border || {}),
+                            left: { style: "medium", color: { rgb: "64748B" } }
+                        };
+                    }
+                }
+            });
+
+            ws['!views'] = [{ showGridLines: false }];
+
+            XLSX.utils.book_append_sheet(wb, ws, "Gantt Matrix");
+            const fileName = `${loadedProjectName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_gantt.xlsx`;
+            XLSX.writeFile(wb, fileName);
+            showStatus("File Excel generato con successo!", "success");
+        }
+
+        lucide.createIcons();
+    </script>
+</body>
+</html>
