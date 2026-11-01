@@ -9,3 +9,6 @@ Gantt v1.0.0-beta2: aggiunto secondo livello di sotto-attività, aggiunta eviden
 Gantt v1.0.0-beta3: aggiunta possibilità di spostare interi gruppi di attività lungo la linea temporale, migliorata la disposizione dei pulsanti,  il nome progretto appare 
                     anche sull'etichetta della pagina html, aggiornati i pop-up dei pulsanti al passaggio del mouse e gli avvisi per le cancellazioni dati, corretti bug minori
 Gantt v1.0.0-beta4: aggiunta una nuova funzione per cambio visualizzazione settimanale/mensile
+G-Gantt v1.0: primo rilascio ufficiale, con aggiunta slittamenti attività iniziali, implementazione di UNDO/REDO, numerose correzioni bug, implementazioni controlli di sicurezza e 
+              pulizia codice. Nuovo nome e nuova icona programma :D
+Gantt-Bro: nuova utility che permette di esportare il salvataggio programmazione da JSON a XLSX
