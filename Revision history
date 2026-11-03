@@ -12,3 +12,4 @@ Gantt v1.0.0-beta4: aggiunta una nuova funzione per cambio visualizzazione setti
 G-Gantt v1.0: primo rilascio ufficiale, con aggiunta slittamenti attività iniziali, implementazione di UNDO/REDO, numerose correzioni bug, implementazioni controlli di sicurezza e 
               pulizia codice. Nuovo nome e nuova icona programma :D
 Gantt-Bro: nuova utility che permette di esportare il salvataggio programmazione da JSON a XLSX
+G-Gantt v1.1: aggiunta la possibilità di traslare tutto il programma attività di N giorni, aggiunte le Milestone, migliorata la gestione della memoria locale del browser, correzione piccoli bug
